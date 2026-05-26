@@ -11,3 +11,4 @@ coverage
 .remotion
 render-output
 prisma/*.db
+.vercel
