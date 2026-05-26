@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://reels:reels@localhost:5432/reels_factory
+      SKIP_PAYMENT: "true"
+      NEXTAUTH_SECRET: ci-secret
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: reels
+          POSTGRES_PASSWORD: reels
+          POSTGRES_DB: reels_factory
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm install
+      - run: npm run db:generate
+      - run: npm run db:push
+      - run: npm run build --workspace=@reels-factory/web

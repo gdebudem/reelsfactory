@@ -1,0 +1,87 @@
+import "dotenv/config";
+import { Worker } from "bullmq";
+import { PrismaClient } from "@prisma/client";
+import type {
+  ProductCard,
+  ReelScript,
+  reelTypeSchema,
+  ctaTypeSchema,
+} from "@reels-factory/shared";
+import type { z } from "zod";
+import { generateReelScript } from "@reels-factory/ai-script";
+import { renderReelToS3 } from "./render.js";
+
+const prisma = new PrismaClient();
+const connection = {
+  host: process.env.REDIS_HOST ?? "localhost",
+  port: Number(process.env.REDIS_PORT ?? 6379),
+};
+
+const QUEUE_NAME = "render-reel";
+
+async function processJob(jobId: string) {
+  const job = await prisma.reelJob.findUnique({ where: { id: jobId } });
+  if (!job) throw new Error(`Job ${jobId} not found`);
+
+  await prisma.reelJob.update({
+    where: { id: jobId },
+    data: { status: "rendering" },
+  });
+
+  const product = job.productJson as ProductCard;
+  let script = job.scriptJson as ReelScript | null;
+
+  if (!script) {
+    script = await generateReelScript({
+      product,
+      reelType: job.reelType as z.infer<typeof reelTypeSchema>,
+      highlights: job.highlights,
+      customHighlight: job.customHighlight ?? undefined,
+      ctaType: job.ctaType as z.infer<typeof ctaTypeSchema>,
+      ctaValue: job.ctaValue ?? undefined,
+      tier: job.tier as "basic" | "premium",
+    });
+    await prisma.reelJob.update({
+      where: { id: jobId },
+      data: { scriptJson: script, templateId: script.templateId },
+    });
+  }
+
+  const videoUrl = await renderReelToS3(jobId, product, script);
+
+  await prisma.reelJob.update({
+    where: { id: jobId },
+    data: { status: "ready", videoUrl },
+  });
+}
+
+const worker = new Worker(
+  QUEUE_NAME,
+  async (job) => {
+    const jobId = job.data.jobId as string;
+    console.log(`[worker] Processing reel job ${jobId}`);
+    try {
+      await processJob(jobId);
+      console.log(`[worker] Done ${jobId}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[worker] Failed ${jobId}:`, message);
+      await prisma.reelJob.update({
+        where: { id: jobId },
+        data: { status: "failed", errorMessage: message },
+      });
+      throw err;
+    }
+  },
+  { connection, concurrency: 1 }
+);
+
+worker.on("ready", () => {
+  console.log(`[worker] Listening on queue "${QUEUE_NAME}"`);
+});
+
+process.on("SIGINT", async () => {
+  await worker.close();
+  await prisma.$disconnect();
+  process.exit(0);
+});

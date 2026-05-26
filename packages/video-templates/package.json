@@ -1,0 +1,20 @@
+{
+  "name": "@reels-factory/video-templates",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./root": "./src/Root.tsx"
+  },
+  "dependencies": {
+    "@reels-factory/shared": "*",
+    "react": "^19.1.0",
+    "remotion": "^4.0.232"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5"
+  }
+}

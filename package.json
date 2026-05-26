@@ -1,0 +1,20 @@
+{
+  "name": "reels-factory",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@reels-factory/web",
+    "worker": "npm run start --workspace=@reels-factory/worker",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace=@reels-factory/web",
+    "db:push": "npm run db:push --workspace=@reels-factory/web",
+    "db:studio": "npm run db:studio --workspace=@reels-factory/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
