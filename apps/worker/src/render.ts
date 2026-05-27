@@ -8,6 +8,17 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEMO_VIDEO_URL =
+  process.env.DEMO_VIDEO_URL ??
+  "https://samplelib.com/lib/preview/mp4/sample-5s.mp4";
+
+function hasStorageConfigured() {
+  return Boolean(
+    process.env.S3_BUCKET &&
+      process.env.S3_ACCESS_KEY &&
+      process.env.S3_SECRET_KEY
+  );
+}
 
 function getS3Client() {
   const endpoint = process.env.S3_ENDPOINT;
@@ -23,6 +34,11 @@ function getS3Client() {
 }
 
 async function renderMockPlaceholder(jobId: string): Promise<string> {
+  if (!hasStorageConfigured()) {
+    console.warn("[render] S3 is not configured, returning demo video URL.");
+    return DEMO_VIDEO_URL;
+  }
+
   const bucket = process.env.S3_BUCKET ?? "reels-factory";
   const key = `videos/${jobId}.txt`;
   const body = Buffer.from(
@@ -47,6 +63,11 @@ export async function renderReelToS3(
   product: ProductCard,
   script: ReelScript
 ): Promise<string> {
+  if (!hasStorageConfigured()) {
+    console.warn("[render] No S3 credentials, skipping upload.");
+    return DEMO_VIDEO_URL;
+  }
+
   if (process.env.MOCK_RENDER === "true") {
     return renderMockPlaceholder(jobId);
   }
