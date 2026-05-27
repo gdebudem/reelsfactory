@@ -3,11 +3,21 @@ import { getRenderQueue } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { generateReelScript } from "@reels-factory/ai-script";
 import type { ProductCard } from "@reels-factory/shared";
+import { envProblemResponse, hasDatabaseConfigured, hasRedisConfigured } from "@/lib/env";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!hasDatabaseConfigured()) {
+    const p = envProblemResponse("db");
+    return NextResponse.json(p.body, { status: p.status });
+  }
+  if (!hasRedisConfigured()) {
+    const p = envProblemResponse("redis");
+    return NextResponse.json(p.body, { status: p.status });
+  }
+
   const { id } = await params;
   const job = await prisma.reelJob.findUnique({ where: { id } });
   if (!job) {

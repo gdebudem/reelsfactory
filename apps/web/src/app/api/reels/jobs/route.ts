@@ -3,8 +3,14 @@ import { getServerSession } from "next-auth";
 import { createReelJobSchema } from "@reels-factory/shared";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { envProblemResponse, hasDatabaseConfigured } from "@/lib/env";
 
 export async function POST(req: Request) {
+  if (!hasDatabaseConfigured()) {
+    const p = envProblemResponse("db");
+    return NextResponse.json(p.body, { status: p.status });
+  }
+
   try {
     const session = await getServerSession(authOptions);
     const body = await req.json();
@@ -36,6 +42,11 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  if (!hasDatabaseConfigured()) {
+    const p = envProblemResponse("db");
+    return NextResponse.json(p.body, { status: p.status });
+  }
+
   const session = await getServerSession(authOptions);
   const jobs = await prisma.reelJob.findMany({
     where: session?.user?.id ? { userId: session.user.id } : {},
