@@ -50,27 +50,27 @@ export async function renderReelToS3(
   if (process.env.MOCK_RENDER === "true") {
     return renderMockPlaceholder(jobId);
   }
-  const entry = path.resolve(
-    __dirname,
-    "../../../packages/video-templates/src/Root.tsx"
-  );
-  const outDir = path.resolve(__dirname, "../../.render-output");
-  fs.mkdirSync(outDir, { recursive: true });
-  const outputPath = path.join(outDir, `${jobId}.mp4`);
-
-  const bundleLocation = await bundle({
-    entryPoint: entry,
-    webpackOverride: (config) => config,
-  });
-
-  const inputProps = { product, script };
-  const composition = await selectComposition({
-    serveUrl: bundleLocation,
-    id: VIDEO_CONFIG.compositionId,
-    inputProps,
-  });
-
   try {
+    const entry = path.resolve(
+      __dirname,
+      "../../../packages/video-templates/src/Root.tsx"
+    );
+    const outDir = path.resolve(__dirname, "../../.render-output");
+    fs.mkdirSync(outDir, { recursive: true });
+    const outputPath = path.join(outDir, `${jobId}.mp4`);
+
+    const bundleLocation = await bundle({
+      entryPoint: entry,
+      webpackOverride: (config) => config,
+    });
+
+    const inputProps = { product, script };
+    const composition = await selectComposition({
+      serveUrl: bundleLocation,
+      id: VIDEO_CONFIG.compositionId,
+      inputProps,
+    });
+
     await renderMedia({
       composition,
       serveUrl: bundleLocation,
@@ -78,29 +78,29 @@ export async function renderReelToS3(
       outputLocation: outputPath,
       inputProps,
     });
+
+    const bucket = process.env.S3_BUCKET ?? "reels-factory";
+    const key = `videos/${jobId}.mp4`;
+    const body = fs.readFileSync(outputPath);
+
+    const s3 = getS3Client();
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: "video/mp4",
+      })
+    );
+
+    const publicUrl = process.env.S3_PUBLIC_URL;
+    if (publicUrl) {
+      return `${publicUrl.replace(/\/$/, "")}/${key}`;
+    }
+    const endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000";
+    return `${endpoint}/${bucket}/${key}`;
   } catch (err) {
     console.warn("[render] Remotion failed, using mock:", err);
     return renderMockPlaceholder(jobId);
   }
-
-  const bucket = process.env.S3_BUCKET ?? "reels-factory";
-  const key = `videos/${jobId}.mp4`;
-  const body = fs.readFileSync(outputPath);
-
-  const s3 = getS3Client();
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: "video/mp4",
-    })
-  );
-
-  const publicUrl = process.env.S3_PUBLIC_URL;
-  if (publicUrl) {
-    return `${publicUrl.replace(/\/$/, "")}/${key}`;
-  }
-  const endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000";
-  return `${endpoint}/${bucket}/${key}`;
 }
