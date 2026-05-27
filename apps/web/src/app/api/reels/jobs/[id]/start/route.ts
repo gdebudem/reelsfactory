@@ -57,12 +57,23 @@ export async function POST(
     });
   }
 
-  await prisma.reelJob.update({
-    where: { id },
-    data: { status: "queued" },
-  });
+  try {
+    await getRenderQueue().add("render", { jobId: id }, { jobId: id });
+    await prisma.reelJob.update({
+      where: { id },
+      data: { status: "queued" },
+    });
 
-  await getRenderQueue().add("render", { jobId: id }, { jobId: id });
-
-  return NextResponse.json({ ok: true, status: "queued" });
+    return NextResponse.json({ ok: true, status: "queued" });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Ошибка очереди";
+    await prisma.reelJob.update({
+      where: { id },
+      data: { status: "failed", errorMessage: message },
+    });
+    return NextResponse.json(
+      { error: "Не удалось поставить задачу в очередь", details: message },
+      { status: 500 }
+    );
+  }
 }

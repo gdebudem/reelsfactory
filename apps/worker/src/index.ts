@@ -12,10 +12,31 @@ import { generateReelScript } from "@reels-factory/ai-script";
 import { renderReelToS3 } from "./render.js";
 
 const prisma = new PrismaClient();
-const connection = {
-  host: process.env.REDIS_HOST ?? "localhost",
-  port: Number(process.env.REDIS_PORT ?? 6379),
-};
+
+function getRedisConnection() {
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    const parsed = new URL(redisUrl);
+    const isTls = parsed.protocol === "rediss:";
+    return {
+      host: parsed.hostname || "localhost",
+      port: Number(parsed.port || 6379),
+      username: parsed.username || undefined,
+      password: parsed.password || undefined,
+      tls: isTls ? {} : undefined,
+      maxRetriesPerRequest: null as null,
+    };
+  }
+
+  return {
+    host: process.env.REDIS_HOST ?? "localhost",
+    port: Number(process.env.REDIS_PORT ?? 6379),
+    password: process.env.REDIS_PASSWORD ?? undefined,
+    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+    maxRetriesPerRequest: null as null,
+  };
+}
+const connection = getRedisConnection();
 
 const QUEUE_NAME = "render-reel";
 
