@@ -117,8 +117,8 @@ flowchart LR
 1. Зайти на [vercel.com](https://vercel.com) → войти через GitHub.
 2. **Add New Project** → выбрать репозиторий `gdebudem/reelsfactory`.
 3. Важные настройки сборки:
-   - Сборка идёт **из корня репозитория** (у нас есть [vercel.json](vercel.json) в корне).
-   - Не указывать вручную «Output Directory» как `.next` в корне — иначе будет ошибка 404 на сайте.
+   - **Root Directory:** `apps/web` (см. [VERCEL_FIX.md](VERCEL_FIX.md)).
+   - Не задавать вручную **Output Directory** — иначе будет 404 на маршрутах.
 4. Добавить переменные окружения в Vercel (Settings → Environment Variables):
 
 | Переменная | Значение | Зачем |
@@ -218,4 +218,4 @@ Vercel **не умеет** долго собирать видео (нужны м
 ## Полезные ссылки в проекте
 
 - Подробный деплой: [DEPLOY.md](DEPLOY.md)
-- Конфиг Vercel в корне: [vercel.json](vercel.json)
+- Конфиг Vercel: [apps/web/vercel.json](apps/web/vercel.json)
