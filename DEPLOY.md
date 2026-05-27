@@ -1,50 +1,61 @@
-# Деплой Reels Factory на Vercel + GitHub
+# Деплой Reels Factory (GitHub + Vercel, без локального Docker)
 
-## 1. GitHub
+## Репозиторий
 
-```bash
-cd "c:\cursor\reels factory"
-git init
-git add .
-git commit -m "feat: landing page and Vercel config"
-```
+- GitHub: https://github.com/gdebudem/reelsfactory
+- Production URL: https://web-omega-ochre-29.vercel.app
 
-На [github.com](https://github.com) → **New repository** → имя `reels-factory` → без README.
+## Автодеплой (как это работает)
 
-```bash
-git remote add origin https://github.com/ВАШ_ЛОГИН/reels-factory.git
-git branch -M main
-git push -u origin main
-```
+1. Вы меняете код в `c:\cursor\reels factory`
+2. `git add .` → `git commit -m "..."` → `git push origin main`
+3. GitHub получает код
+4. Vercel автоматически запускает сборку (1–3 минуты)
+5. Сайт обновляется на URL выше
 
-## 2. Vercel
+Проверка: Vercel → проект **web** → **Deployments** → статус **Ready**.
 
-1. [vercel.com](https://vercel.com) → **Add New Project**
-2. Import репозитория `reels-factory`
-3. **Root Directory:** `apps/web` (обязательно!)
-4. Framework: Next.js (подтянется автоматически)
-5. **Environment Variables** (для первого деплоя лендинга):
+## Первичная настройка Vercel (один раз)
+
+1. [vercel.com](https://vercel.com) → Import Git Repository → `gdebudem/reelsfactory`
+2. **Framework:** Next.js
+3. **Root Directory:** оставьте **пустым** (корень репозитория) — используется [vercel.json](vercel.json) в корне
+   - Альтернатива: Root Directory = `apps/web` и тогда используется [apps/web/vercel.json](apps/web/vercel.json)
+4. **Environment Variables** (минимум для этапа 1 — лендинг + визард):
 
 | Key | Value |
 |-----|--------|
-| `NEXTAUTH_SECRET` | любая длинная строка (32+ символа) |
-| `NEXT_PUBLIC_APP_URL` | `https://ваш-проект.vercel.app` |
+| `NEXTAUTH_SECRET` | случайная строка 32+ символов |
+| `NEXT_PUBLIC_APP_URL` | `https://web-omega-ochre-29.vercel.app` |
 | `SKIP_PAYMENT` | `true` |
 
-6. **Deploy**
+5. Deploy
 
-После первого деплоя обновите `NEXT_PUBLIC_APP_URL` на финальный URL.
+**Важно:** не задавайте вручную Output Directory = `.next` или `apps/web/.next` — иначе будет 404.
 
-## 3. Автодеплой
+## Проверка после деплоя
 
-После подключения GitHub каждый `git push` в `main` автоматически деплоит сайт.
+- Главная: https://web-omega-ochre-29.vercel.app/
+- Визард: https://web-omega-ochre-29.vercel.app/create
+- Health: https://web-omega-ochre-29.vercel.app/api/health
 
-## 4. Позже (полный функционал)
+## Этап 2 (позже): полный пайплайн
 
 Добавьте в Vercel:
 
-- `DATABASE_URL` — [Neon](https://neon.tech) (Postgres)
-- `REDIS_URL` — [Upstash](https://upstash.com)
-- `OPENAI_API_KEY` — опционально
+| Key | Сервис |
+|-----|--------|
+| `DATABASE_URL` | [Neon](https://neon.tech) |
+| `REDIS_URL` | [Upstash](https://upstash.com) |
+| `OPENAI_API_KEY` | OpenAI |
 
-Затем локально: `npm run db:push` с production `DATABASE_URL`.
+Без `DATABASE_URL` кнопка «Создать видео» выдаст «Не удалось создать задачу».
+
+## Команды для отправки изменений
+
+```powershell
+cd "c:\cursor\reels factory"
+git add .
+git commit -m "описание изменений"
+git push origin main
+```

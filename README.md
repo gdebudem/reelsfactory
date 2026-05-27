@@ -2,6 +2,13 @@
 
 AI-платформа для автоматического создания рекламных Reels: **4 вопроса → готовое видео 9:16**.
 
+## Production (без локального запуска)
+
+- Сайт: **https://web-omega-ochre-29.vercel.app**
+- GitHub: **https://github.com/gdebudem/reelsfactory**
+- Автодеплой: `git push origin main` → Vercel собирает сайт автоматически
+- Инструкция: [DEPLOY.md](DEPLOY.md)
+
 ## Стек
 
 - **apps/web** — Next.js 15 (лендинг, визард, API, dashboard)

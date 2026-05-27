@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   build:
@@ -12,8 +12,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://reels:reels@localhost:5432/reels_factory
       SKIP_PAYMENT: "true"
-      NEXTAUTH_SECRET: ci-secret
-      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-secret-for-build
+      NEXT_PUBLIC_APP_URL: https://example.vercel.app
 
     services:
       postgres:
@@ -27,12 +27,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
 
-      - run: npm install
-      - run: npm run db:generate
-      - run: npm run db:push
-      - run: npm run build --workspace=@reels-factory/web
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Push database schema
+        run: npm run db:push
+
+      - name: Build web app
+        run: npm run build --workspace=@reels-factory/web
