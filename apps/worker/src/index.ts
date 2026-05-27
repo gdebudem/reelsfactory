@@ -15,27 +15,36 @@ const prisma = new PrismaClient();
 
 function getRedisConnection() {
   const redisUrl = process.env.REDIS_URL;
-  if (redisUrl) {
-    const parsed = new URL(redisUrl);
-    const isTls = parsed.protocol === "rediss:";
-    return {
-      host: parsed.hostname || "localhost",
-      port: Number(parsed.port || 6379),
-      username: parsed.username || undefined,
-      password: parsed.password || undefined,
-      tls: isTls ? {} : undefined,
-      maxRetriesPerRequest: null as null,
-    };
+  if (!redisUrl) {
+    console.error(
+      "[worker] REDIS_URL is not set. Add your Upstash URL in Railway Variables and redeploy."
+    );
+    process.exit(1);
   }
 
+  const parsed = new URL(redisUrl);
+  const isTls =
+    parsed.protocol === "rediss:" ||
+    parsed.hostname.includes("upstash.io") ||
+    process.env.REDIS_TLS === "true";
+
   return {
-    host: process.env.REDIS_HOST ?? "localhost",
-    port: Number(process.env.REDIS_PORT ?? 6379),
-    password: process.env.REDIS_PASSWORD ?? undefined,
-    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+    host: parsed.hostname || "localhost",
+    port: Number(parsed.port || 6379),
+    username: parsed.username || undefined,
+    password: parsed.password || undefined,
+    tls: isTls ? {} : undefined,
     maxRetriesPerRequest: null as null,
   };
 }
+
+if (!process.env.DATABASE_URL) {
+  console.error(
+    "[worker] DATABASE_URL is not set. Add your Neon URL in Railway Variables and redeploy."
+  );
+  process.exit(1);
+}
+
 const connection = getRedisConnection();
 
 const QUEUE_NAME = "render-reel";

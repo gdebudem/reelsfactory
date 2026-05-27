@@ -13,7 +13,8 @@ function getConnectionOptions() {
   }
 
   const parsed = new URL(url);
-  const isTls = parsed.protocol === "rediss:";
+  const isTls =
+    parsed.protocol === "rediss:" || parsed.hostname.includes("upstash.io");
 
   return {
     host: parsed.hostname || "localhost",
