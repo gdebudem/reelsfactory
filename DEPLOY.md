@@ -19,8 +19,7 @@
 
 1. [vercel.com](https://vercel.com) → Import Git Repository → `gdebudem/reelsfactory`
 2. **Framework:** Next.js
-3. **Root Directory:** оставьте **пустым** (корень репозитория) — используется [vercel.json](vercel.json) в корне
-   - Альтернатива: Root Directory = `apps/web` и тогда используется [apps/web/vercel.json](apps/web/vercel.json)
+3. **Root Directory:** обязательно **`apps/web`** (см. [VERCEL_FIX.md](VERCEL_FIX.md))
 4. **Environment Variables** (минимум для этапа 1 — лендинг + визард):
 
 | Key | Value |
