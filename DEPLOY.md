@@ -68,6 +68,15 @@
 
 Визард вызывает `POST /api/pipeline/run` — создаёт job, генерирует сценарий, оплачивает (или пропускает) и ставит в очередь за один запрос.
 
+## Этап 5: реальный MP4 (worker + R2)
+
+1. Worker на **Railway** с **Dockerfile** `apps/worker/Dockerfile` (Chromium для Remotion).
+2. Хранилище **Cloudflare R2** — пошагово: [R2_SETUP.md](R2_SETUP.md).
+3. Переменные `S3_*` в Railway worker + **Redeploy**.
+4. Новый ролик на сайте → в логах: `[render] Uploaded videos/....mp4`.
+
+Без `S3_*` worker отдаёт демо-видео (не ваш MP4).
+
 ## Команды для отправки изменений
 
 ```powershell

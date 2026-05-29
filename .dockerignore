@@ -1,0 +1,13 @@
+node_modules
+.next
+.render-output
+.git
+.env
+.env.*
+*.md
+!apps/worker/RAILWAY.md
+!R2_SETUP.md
+terminals
+.cursor
+agent-tools
+assets

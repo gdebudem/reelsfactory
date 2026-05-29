@@ -4,58 +4,27 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { ProductCard, ReelScript } from "@reels-factory/shared";
 import { VIDEO_CONFIG } from "@reels-factory/video-templates";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import fs from "fs";
+import { hasStorageConfigured, uploadToStorage } from "./storage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const DEMO_VIDEO_URL =
   process.env.DEMO_VIDEO_URL ??
   "https://samplelib.com/lib/preview/mp4/sample-5s.mp4";
 
-function hasStorageConfigured() {
-  return Boolean(
-    process.env.S3_BUCKET &&
-      process.env.S3_ACCESS_KEY &&
-      process.env.S3_SECRET_KEY
-  );
-}
-
-function getS3Client() {
-  const endpoint = process.env.S3_ENDPOINT;
-  return new S3Client({
-    region: process.env.S3_REGION ?? "us-east-1",
-    endpoint,
-    forcePathStyle: Boolean(endpoint),
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY ?? "minioadmin",
-      secretAccessKey: process.env.S3_SECRET_KEY ?? "minioadmin",
-    },
-  });
+export function getRenderMode(): "full" | "demo" | "mock" {
+  if (process.env.MOCK_RENDER === "true") return "mock";
+  if (!hasStorageConfigured()) return "demo";
+  return "full";
 }
 
 async function renderMockPlaceholder(jobId: string): Promise<string> {
-  if (!hasStorageConfigured()) {
-    console.warn("[render] S3 is not configured, returning demo video URL.");
-    return DEMO_VIDEO_URL;
-  }
-
-  const bucket = process.env.S3_BUCKET ?? "reels-factory";
   const key = `videos/${jobId}.txt`;
   const body = Buffer.from(
-    "Reels Factory placeholder — enable Remotion render in production worker."
+    "Reels Factory — MOCK_RENDER placeholder. Set MOCK_RENDER=false for real MP4."
   );
-  const s3 = getS3Client();
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: "text/plain",
-    })
-  );
-  const publicUrl = process.env.S3_PUBLIC_URL;
-  if (publicUrl) return `${publicUrl.replace(/\/$/, "")}/${key}`;
-  return `${process.env.S3_ENDPOINT ?? "http://localhost:9000"}/${bucket}/${key}`;
+  return uploadToStorage(key, body, "text/plain");
 }
 
 export async function renderReelToS3(
@@ -63,65 +32,64 @@ export async function renderReelToS3(
   product: ProductCard,
   script: ReelScript
 ): Promise<string> {
-  if (!hasStorageConfigured()) {
-    console.warn("[render] No S3 credentials, skipping upload.");
+  const mode = getRenderMode();
+
+  if (mode === "demo") {
+    console.warn(
+      "[render] S3/R2 not configured — using DEMO_VIDEO_URL. See R2_SETUP.md"
+    );
     return DEMO_VIDEO_URL;
   }
 
-  if (process.env.MOCK_RENDER === "true") {
+  if (mode === "mock") {
+    if (!hasStorageConfigured()) return DEMO_VIDEO_URL;
     return renderMockPlaceholder(jobId);
   }
+
+  const entry = path.resolve(
+    __dirname,
+    "../../../packages/video-templates/src/Root.tsx"
+  );
+  const outDir = path.resolve(__dirname, "../../.render-output");
+  fs.mkdirSync(outDir, { recursive: true });
+  const outputPath = path.join(outDir, `${jobId}.mp4`);
+
+  const bundleLocation = await bundle({
+    entryPoint: entry,
+    webpackOverride: (config) => config,
+  });
+
+  const inputProps = { product, script };
+  const composition = await selectComposition({
+    serveUrl: bundleLocation,
+    id: VIDEO_CONFIG.compositionId,
+    inputProps,
+  });
+
+  const browserExecutable =
+    process.env.REMOTION_CHROME_EXECUTABLE ||
+    process.env.CHROME_EXECUTABLE ||
+    undefined;
+
+  await renderMedia({
+    composition,
+    serveUrl: bundleLocation,
+    codec: "h264",
+    outputLocation: outputPath,
+    inputProps,
+    browserExecutable,
+  });
+
+  const key = `videos/${jobId}.mp4`;
+  const body = fs.readFileSync(outputPath);
+
   try {
-    const entry = path.resolve(
-      __dirname,
-      "../../../packages/video-templates/src/Root.tsx"
-    );
-    const outDir = path.resolve(__dirname, "../../.render-output");
-    fs.mkdirSync(outDir, { recursive: true });
-    const outputPath = path.join(outDir, `${jobId}.mp4`);
-
-    const bundleLocation = await bundle({
-      entryPoint: entry,
-      webpackOverride: (config) => config,
-    });
-
-    const inputProps = { product, script };
-    const composition = await selectComposition({
-      serveUrl: bundleLocation,
-      id: VIDEO_CONFIG.compositionId,
-      inputProps,
-    });
-
-    await renderMedia({
-      composition,
-      serveUrl: bundleLocation,
-      codec: "h264",
-      outputLocation: outputPath,
-      inputProps,
-    });
-
-    const bucket = process.env.S3_BUCKET ?? "reels-factory";
-    const key = `videos/${jobId}.mp4`;
-    const body = fs.readFileSync(outputPath);
-
-    const s3 = getS3Client();
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: body,
-        ContentType: "video/mp4",
-      })
-    );
-
-    const publicUrl = process.env.S3_PUBLIC_URL;
-    if (publicUrl) {
-      return `${publicUrl.replace(/\/$/, "")}/${key}`;
-    }
-    const endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000";
-    return `${endpoint}/${bucket}/${key}`;
-  } catch (err) {
-    console.warn("[render] Remotion failed, using mock:", err);
-    return renderMockPlaceholder(jobId);
+    fs.unlinkSync(outputPath);
+  } catch {
+    /* ignore */
   }
+
+  const url = await uploadToStorage(key, body, "video/mp4");
+  console.log(`[render] Uploaded ${key} → ${url}`);
+  return url;
 }

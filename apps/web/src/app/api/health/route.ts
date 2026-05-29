@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { hasDatabaseConfigured, hasOpenAiConfigured, hasRedisConfigured } from "@/lib/env";
+import {
+  hasDatabaseConfigured,
+  hasOpenAiConfigured,
+  hasRedisConfigured,
+  hasStorageConfigured,
+} from "@/lib/env";
 import { DEFAULT_OPENAI_MODEL } from "@reels-factory/ai-script";
 
 export async function GET() {
@@ -13,5 +18,6 @@ export async function GET() {
     openaiModel: hasOpenAiConfigured()
       ? process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
       : null,
+    storageConfigured: hasStorageConfigured(),
   });
 }

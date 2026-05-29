@@ -78,7 +78,8 @@ prisma/schema.prisma
 ## Деплой
 
 - **Web:** Vercel (`apps/web`)
-- **Worker:** Fly.io / Railway (нужны FFmpeg, Chrome для Remotion)
+- **Worker:** Railway + Docker (`apps/worker/Dockerfile`, Remotion + Chromium)
+- **MP4 storage:** Cloudflare R2 — [R2_SETUP.md](R2_SETUP.md)
 - **DB/Redis/S3:** managed services
 
 ## CI

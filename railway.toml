@@ -1,0 +1,10 @@
+# Worker service: build with Docker (Chromium libs for Remotion).
+# In Railway: service @reels-factory/worker → Settings → Builder = Dockerfile.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "apps/worker/Dockerfile"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

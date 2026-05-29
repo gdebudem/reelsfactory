@@ -1,38 +1,42 @@
-# Worker on Railway
+# Worker on Railway (этап 5)
 
-## Service settings
+## Builder: Docker (обязательно)
 
-- **Root Directory:** repository root (not `apps/worker`)
-- **Start Command:** `npm run worker` (or use root `railway.toml`)
+Railpack **не подходит** для Remotion (нет `libnspr4`).
 
-## Required variables
+1. Railway → `@reels-factory/worker` → **Settings**
+2. **Build** → Builder: **Dockerfile**
+3. Dockerfile path: `apps/worker/Dockerfile`
+4. Root directory: репозиторий (корень)
+5. **Deploy / Redeploy**
 
-| Variable | Source |
-|----------|--------|
-| `DATABASE_URL` | Neon |
-| `REDIS_URL` | Upstash |
-| `OPENAI_API_KEY` | OpenAI (сценарий, модель `gpt-4o`) |
-| `OPENAI_MODEL` | опционально, по умолчанию `gpt-4o` |
+Или используйте `railway.toml` в корне репо.
 
-## Storage (for real MP4)
+## Variables
 
-| Variable | Example (Cloudflare R2) |
-|----------|-------------------------|
-| `S3_ENDPOINT` | `https://<account>.r2.cloudflarestorage.com` |
-| `S3_REGION` | `auto` |
-| `S3_BUCKET` | `reels-factory` |
-| `S3_ACCESS_KEY` | R2 access key |
-| `S3_SECRET_KEY` | R2 secret |
-| `S3_PUBLIC_URL` | public bucket URL |
+| Variable | Required |
+|----------|----------|
+| `DATABASE_URL` | yes |
+| `REDIS_URL` | yes |
+| `OPENAI_API_KEY` | yes |
+| `S3_ENDPOINT` | yes (R2) |
+| `S3_REGION` | `auto` for R2 |
+| `S3_BUCKET` | yes |
+| `S3_ACCESS_KEY` | yes |
+| `S3_SECRET_KEY` | yes |
+| `S3_PUBLIC_URL` | yes (public bucket URL) |
 
-## Quick test without full render
+Do **not** set `MOCK_RENDER=true` for production.
 
-Set `MOCK_RENDER=true` — worker finishes jobs with a placeholder file (still needs S3 credentials).
+## Logs (success)
 
-## Success log line
-
-```
+```text
 [worker] Listening on queue "render-reel"
+[worker] Storage (S3/R2): configured
+[worker] Render mode: full
+[render] Uploaded videos/<id>.mp4 → https://...
 ```
 
-After that, create a **new** reel on the site (old `queued` jobs are not reprocessed automatically).
+## R2 setup
+
+See [R2_SETUP.md](../../R2_SETUP.md) in repo root.

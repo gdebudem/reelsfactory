@@ -10,6 +10,14 @@ export function hasOpenAiConfigured() {
   return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
 
+export function hasStorageConfigured() {
+  return Boolean(
+    process.env.S3_BUCKET?.trim() &&
+      process.env.S3_ACCESS_KEY?.trim() &&
+      process.env.S3_SECRET_KEY?.trim()
+  );
+}
+
 export function envProblemResponse(kind: "db" | "redis") {
   if (kind === "db") {
     return {
