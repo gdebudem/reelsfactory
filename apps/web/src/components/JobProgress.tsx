@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhonePreview } from "./PhonePreview";
+import { ScriptPanel } from "./ScriptPanel";
 import type { ProductCard, ReelScript } from "@reels-factory/shared";
 
 type Job = {
@@ -76,46 +77,60 @@ export function JobProgress({ jobId }: { jobId: string }) {
 
   if (job.status === "ready" && job.videoUrl) {
     return (
-      <div className="grid gap-10 lg:grid-cols-2">
-        <div>
-          <h2 className="text-2xl font-bold text-green-700">Готово!</h2>
-          <p className="mt-2 text-slate-600">
-            Скачайте ролик и публикуйте в соцсетях
-          </p>
-          <video
-            src={job.videoUrl}
-            controls
-            className="mt-6 w-full max-w-md rounded-2xl shadow-lg"
-          />
-          <a
-            href={job.videoUrl}
-            download
-            className="mt-4 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white"
-          >
-            Скачать MP4
-          </a>
-          <button
-            type="button"
-            onClick={() => router.push("/create")}
-            className="ml-4 mt-4 text-indigo-600 underline"
-          >
-            Создать ещё
-          </button>
+      <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-green-700">Готово!</h2>
+            <p className="mt-2 text-slate-600">
+              Скачайте ролик и публикуйте в соцсетях
+            </p>
+            <video
+              src={job.videoUrl}
+              controls
+              className="mt-6 w-full max-w-md rounded-2xl shadow-lg"
+            />
+            <a
+              href={job.videoUrl}
+              download
+              className="mt-4 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white"
+            >
+              Скачать MP4
+            </a>
+            <button
+              type="button"
+              onClick={() => router.push("/create")}
+              className="ml-4 mt-4 text-indigo-600 underline"
+            >
+              Создать ещё
+            </button>
+          </div>
+          {script && <ScriptPanel script={script} />}
         </div>
-        <PhonePreview product={product} script={script} />
+        <div className="flex justify-center lg:justify-end">
+          <PhonePreview product={product} script={script} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-10 lg:grid-cols-2">
-      <div className="py-12 text-center lg:text-left">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600 lg:mx-0" />
-        <h2 className="mt-6 text-2xl font-bold">Создаём ваш ролик…</h2>
-        <p className="mt-2 text-slate-600">Обычно ~2 минуты</p>
-        <p className="mt-4 text-sm text-slate-500">Статус: {job.status}</p>
+    <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
+      <div className="space-y-6">
+        <div className="py-6 lg:py-0">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600 lg:mx-0" />
+          <h2 className="mt-6 text-2xl font-bold">Создаём ваш ролик…</h2>
+          <p className="mt-2 text-slate-600">Обычно ~2 минуты</p>
+          <p className="mt-4 text-sm text-slate-500">Статус: {job.status}</p>
+        </div>
+        {script ? (
+          <ScriptPanel script={script} />
+        ) : (
+          <p className="text-sm text-slate-500">Готовим сценарий…</p>
+        )}
       </div>
-      <PhonePreview product={product} script={script} />
+      <div className="flex justify-center lg:justify-end">
+        <PhonePreview product={product} script={script} />
+      </div>
     </div>
   );
 }

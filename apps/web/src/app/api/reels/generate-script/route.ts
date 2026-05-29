@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { generateScriptRequestSchema } from "@reels-factory/shared";
 import { generateReelScript } from "@reels-factory/ai-script";
 import { prisma } from "@/lib/prisma";
+import { envProblemResponse, hasDatabaseConfigured } from "@/lib/env";
 
 export async function POST(req: Request) {
   try {
@@ -10,6 +11,10 @@ export async function POST(req: Request) {
     const script = await generateReelScript(input);
 
     if (input.jobId) {
+      if (!hasDatabaseConfigured()) {
+        const p = envProblemResponse("db");
+        return NextResponse.json(p.body, { status: p.status });
+      }
       await prisma.reelJob.update({
         where: { id: input.jobId },
         data: { scriptJson: script, templateId: script.templateId },

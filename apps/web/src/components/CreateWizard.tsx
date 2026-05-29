@@ -85,6 +85,25 @@ export function CreateWizard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Ошибка");
 
+      const scriptRes = await fetch("/api/reels/generate-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: data.job.id,
+          product,
+          reelType,
+          highlights: allHighlights.length ? allHighlights : ["качество"],
+          customHighlight: customHighlight || undefined,
+          ctaType,
+          ctaValue: ctaValue || undefined,
+          tier,
+        }),
+      });
+      const scriptData = await scriptRes.json();
+      if (!scriptRes.ok) {
+        throw new Error(scriptData.error ?? "Не удалось сгенерировать сценарий");
+      }
+
       const checkoutRes = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -287,7 +306,7 @@ export function CreateWizard() {
               onClick={submit}
               className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 font-medium text-white disabled:opacity-50"
             >
-              {loading ? "Обработка…" : "Создать видео"}
+              {loading ? "Сценарий и заказ…" : "Создать видео"}
             </button>
           )}
         </div>
