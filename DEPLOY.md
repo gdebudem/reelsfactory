@@ -38,17 +38,31 @@
 - Визард: https://web-omega-ochre-29.vercel.app/create
 - Health: https://web-omega-ochre-29.vercel.app/api/health
 
-## Этап 2 (позже): полный пайплайн
-
-Добавьте в Vercel:
+## Этап 2: Neon + Upstash
 
 | Key | Сервис |
 |-----|--------|
 | `DATABASE_URL` | [Neon](https://neon.tech) |
 | `REDIS_URL` | [Upstash](https://upstash.com) |
-| `OPENAI_API_KEY` | OpenAI |
 
 Без `DATABASE_URL` кнопка «Создать видео» выдаст «Не удалось создать задачу».
+
+## Этап 3: OpenAI gpt-4o
+
+| Key | Значение |
+|-----|----------|
+| `OPENAI_API_KEY` | ключ с [platform.openai.com](https://platform.openai.com/api-keys) |
+
+Модель в коде: **`gpt-4o`** (можно переопределить `OPENAI_MODEL`).
+
+Тот же `OPENAI_API_KEY` добавьте в **Railway worker** (сценарий генерируется при старте рендера).
+
+Проверка после деплоя:
+
+- https://web-omega-ochre-29.vercel.app/api/health  
+  должно быть `"openaiConfigured": true`, `"openaiModel": "gpt-4o"`
+
+Без ключа сценарий будет **mock** (шаблонный текст).
 
 ## Команды для отправки изменений
 

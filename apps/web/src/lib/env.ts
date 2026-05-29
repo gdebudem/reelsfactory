@@ -6,6 +6,10 @@ export function hasRedisConfigured() {
   return Boolean(process.env.REDIS_URL);
 }
 
+export function hasOpenAiConfigured() {
+  return Boolean(process.env.OPENAI_API_KEY?.trim());
+}
+
 export function envProblemResponse(kind: "db" | "redis") {
   if (kind === "db") {
     return {

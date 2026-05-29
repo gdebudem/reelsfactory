@@ -13,6 +13,13 @@ type ReelType = z.infer<typeof reelTypeSchema>;
 type CtaType = z.infer<typeof ctaTypeSchema>;
 type Tier = z.infer<typeof tierSchema>;
 
+/** Default model for stage 3 (plan: gpt-4o). Override with OPENAI_MODEL. */
+export const DEFAULT_OPENAI_MODEL = "gpt-4o";
+
+export function getOpenAiModel() {
+  return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
+}
+
 const TONE_BY_TYPE: Record<ReelType, string> = {
   promo: "яркий, срочный, акцент на выгоде и цене",
   new: "свежий, интригующий, ощущение новинки",
@@ -133,7 +140,7 @@ export async function generateReelScript(
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: getOpenAiModel(),
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
