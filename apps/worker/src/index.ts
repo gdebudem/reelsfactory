@@ -114,13 +114,19 @@ worker.on("ready", () => {
     console.log(
       `[worker] Storage (S3/R2): ${hasStorageConfigured() ? "configured" : "MISSING"}`
     );
-    console.log(`[worker] Render mode: ${getRenderMode()}`);
-    if (getRenderMode() === "demo") {
+    const renderMode = getRenderMode();
+    console.log(`[worker] Render mode: ${renderMode}`);
+    if (renderMode === "demo") {
       console.log("[worker] Add S3_* vars — see R2_SETUP.md in repo");
       return;
     }
+    const { shouldUseFfmpegRender } = await import("./renderFfmpeg.js");
+    if (shouldUseFfmpegRender()) {
+      console.log("[worker] Render engine: ffmpeg (no Chrome — OK for 1 GB RAM)");
+      return;
+    }
     try {
-      console.log("[worker] Ensuring Remotion Chrome Headless Shell…");
+      console.log("[worker] Render engine: remotion — ensuring Chrome…");
       await ensureRemotionBrowser();
       console.log("[worker] Browser ready");
     } catch (err) {

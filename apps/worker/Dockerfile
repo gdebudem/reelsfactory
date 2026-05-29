@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libxi6 \
   fonts-liberation \
   fonts-noto-core \
+  fontconfig \
   ca-certificates \
   ffmpeg \
   && rm -rf /var/lib/apt/lists/*

@@ -14,6 +14,7 @@ import {
   CHROMIUM_OPTIONS,
   ensureRemotionBrowser,
 } from "./remotionBrowser.js";
+import { renderReelWithFfmpeg, shouldUseFfmpegRender } from "./renderFfmpeg.js";
 import { hasStorageConfigured, uploadToStorage } from "./storage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,14 +60,30 @@ export async function renderReelToS3(
     return renderMockPlaceholder(jobId);
   }
 
-  const entry = path.resolve(
-    __dirname,
-    "../../../packages/video-templates/src/Root.tsx"
-  );
   const outDir = path.resolve(__dirname, "../../.render-output");
   fs.mkdirSync(outDir, { recursive: true });
   const outputPath = path.join(outDir, `${jobId}.mp4`);
 
+  if (shouldUseFfmpegRender()) {
+    console.log("[render] Engine: ffmpeg (Railway / LOW_MEMORY)");
+    await renderReelWithFfmpeg(jobId, product, script, outputPath);
+    const key = `videos/${jobId}.mp4`;
+    const body = fs.readFileSync(outputPath);
+    try {
+      fs.unlinkSync(outputPath);
+    } catch {
+      /* ignore */
+    }
+    const url = await uploadToStorage(key, body, "video/mp4");
+    console.log(`[render] Uploaded ${key} → ${url}`);
+    return url;
+  }
+
+  const entry = path.resolve(
+    __dirname,
+    "../../../packages/video-templates/src/Root.tsx"
+  );
+  console.log("[render] Engine: remotion");
   console.log("[render] Bundling Remotion project…");
   const bundleLocation = await bundle({
     entryPoint: entry,
