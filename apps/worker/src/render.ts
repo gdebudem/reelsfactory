@@ -5,6 +5,7 @@ import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { ProductCard, ReelScript } from "@reels-factory/shared";
 import { VIDEO_CONFIG } from "@reels-factory/video-templates";
 import fs from "fs";
+import { prefetchProductImages } from "./prefetchImages.js";
 import { hasStorageConfigured, uploadToStorage } from "./storage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,7 +60,8 @@ export async function renderReelToS3(
     webpackOverride: (config) => config,
   });
 
-  const inputProps = { product, script };
+  const productForRender = await prefetchProductImages(product);
+  const inputProps = { product: productForRender, script };
   const composition = await selectComposition({
     serveUrl: bundleLocation,
     id: VIDEO_CONFIG.compositionId,
@@ -78,6 +80,7 @@ export async function renderReelToS3(
     outputLocation: outputPath,
     inputProps,
     browserExecutable,
+    timeoutInMilliseconds: 120_000,
   });
 
   const key = `videos/${jobId}.mp4`;

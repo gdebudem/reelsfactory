@@ -13,9 +13,13 @@ export type PromoReelProps = {
   script: ReelScript;
 };
 
+const FALLBACK_IMAGE =
+  "https://placehold.co/600x800/312e81/ffffff/png?text=Reels+Factory";
+
 export const PromoReel: React.FC<PromoReelProps> = ({ product, script }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const imageSrc = product.images?.[0] ?? FALLBACK_IMAGE;
 
   const zoom = interpolate(frame, [0, durationInFrames], [1, 1.08], {
     extrapolateRight: "clamp",
@@ -44,7 +48,9 @@ export const PromoReel: React.FC<PromoReelProps> = ({ product, script }) => {
         }}
       >
         <Img
-          src={product.images[0]}
+          src={imageSrc}
+          maxRetries={3}
+          delayRenderTimeoutInMilliseconds={60_000}
           style={{
             maxWidth: "75%",
             maxHeight: "55%",
