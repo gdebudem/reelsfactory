@@ -1,30 +1,9 @@
-# Worker image for Railway — Remotion Chrome Headless Shell
+# Worker image for Railway — ffmpeg render (1 GB RAM, no Chrome)
 FROM node:20-bookworm
 
 WORKDIR /app
 
-# https://www.remotion.dev/docs/miscellaneous/linux-dependencies (Debian)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  libnss3 \
-  libdbus-1-3 \
-  libatk1.0-0 \
-  libatk-bridge2.0-0 \
-  libasound2 \
-  libxrandr2 \
-  libxkbcommon0 \
-  libxfixes3 \
-  libxcomposite1 \
-  libxdamage1 \
-  libgbm1 \
-  libcups2 \
-  libcairo2 \
-  libpango-1.0-0 \
-  libglib2.0-0 \
-  libx11-6 \
-  libxcb1 \
-  libxext6 \
-  libxrender1 \
-  libxi6 \
   fonts-liberation \
   fonts-noto-core \
   fontconfig \
@@ -51,7 +30,6 @@ COPY packages ./packages
 COPY apps/worker ./apps/worker
 
 RUN npx prisma generate --schema=./prisma/schema.prisma \
-  && npx remotion browser ensure \
   && test -x node_modules/.bin/tsx
 
 ENV NODE_ENV=production
