@@ -200,7 +200,7 @@ Vercel **не умеет** долго собирать видео (нужны м
 | 1 | Автодеплой GitHub → Vercel, лендинг + визард | URL Vercel | **сделано** |
 | 2 | Подключить Neon + Upstash, переменные в Vercel | Создание задачи без ошибки | **сделано** |
 | 3 | OpenAI `gpt-4o` в коде + `OPENAI_API_KEY` | Качество текста в ролике | **сделано** |
-| 4 | Endpoint «одна кнопка» `POST /api/pipeline/run` | Упрощение UX |
+| 4 | Endpoint «одна кнопка» `POST /api/pipeline/run` | Упрощение UX | **сделано** |
 | 5 | Worker на Railway/Fly + R2 | Полный MP4 в облаке |
 
 ---

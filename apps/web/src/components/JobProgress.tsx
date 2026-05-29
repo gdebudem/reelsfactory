@@ -16,10 +16,16 @@ type Job = {
   scriptJson: ReelScript | null;
 };
 
-export function JobProgress({ jobId }: { jobId: string }) {
+export function JobProgress({
+  jobId,
+  pipelineStarted = false,
+}: {
+  jobId: string;
+  pipelineStarted?: boolean;
+}) {
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [starting, setStarting] = useState(pipelineStarted);
 
   useEffect(() => {
     let active = true;
@@ -43,6 +49,17 @@ export function JobProgress({ jobId }: { jobId: string }) {
     if (starting) return;
     const run = async () => {
       setStarting(true);
+      const statusRes = await fetch(`/api/reels/jobs/${jobId}`);
+      const statusData = await statusRes.json();
+      const status = statusData.job?.status as string | undefined;
+      if (
+        status === "queued" ||
+        status === "rendering" ||
+        status === "ready" ||
+        status === "failed"
+      ) {
+        return;
+      }
       await fetch(`/api/reels/jobs/${jobId}/start`, { method: "POST" });
     };
     run();

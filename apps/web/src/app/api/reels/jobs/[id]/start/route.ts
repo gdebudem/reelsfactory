@@ -24,6 +24,14 @@ export async function POST(
     return NextResponse.json({ error: "Не найдено" }, { status: 404 });
   }
 
+  if (
+    job.status === "queued" ||
+    job.status === "rendering" ||
+    job.status === "ready"
+  ) {
+    return NextResponse.json({ ok: true, status: job.status });
+  }
+
   const skipPayment = process.env.SKIP_PAYMENT === "true";
 
   if (!skipPayment && job.status !== "paid") {

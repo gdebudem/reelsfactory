@@ -68,6 +68,7 @@ prisma/schema.prisma
 
 ## API
 
+- `POST /api/pipeline/run` — **одна кнопка**: задача + сценарий + оплата + очередь
 - `POST /api/products/parse` — парсинг URL товара
 - `POST /api/reels/jobs` — создание задачи
 - `POST /api/checkout` — оплата Stripe

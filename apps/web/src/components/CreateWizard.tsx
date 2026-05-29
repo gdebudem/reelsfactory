@@ -68,7 +68,7 @@ export function CreateWizard() {
         ...highlights,
         ...(customHighlight ? [customHighlight] : []),
       ];
-      const res = await fetch("/api/reels/jobs", {
+      const res = await fetch("/api/pipeline/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -85,39 +85,12 @@ export function CreateWizard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Ошибка");
 
-      const scriptRes = await fetch("/api/reels/generate-script", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId: data.job.id,
-          product,
-          reelType,
-          highlights: allHighlights.length ? allHighlights : ["качество"],
-          customHighlight: customHighlight || undefined,
-          ctaType,
-          ctaValue: ctaValue || undefined,
-          tier,
-        }),
-      });
-      const scriptData = await scriptRes.json();
-      if (!scriptRes.ok) {
-        throw new Error(scriptData.error ?? "Не удалось сгенерировать сценарий");
-      }
-
-      const checkoutRes = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: data.job.id, tier }),
-      });
-      const checkout = await checkoutRes.json();
-      if (!checkoutRes.ok) throw new Error(checkout.error);
-
-      if (checkout.skipPayment) {
-        router.push(`/create/result/${data.job.id}`);
+      if (data.skipPayment) {
+        router.push(`/create/result/${data.jobId}?started=1`);
         return;
       }
-      if (checkout.url) {
-        window.location.href = checkout.url;
+      if (data.url) {
+        window.location.href = data.url;
         return;
       }
     } catch (e) {
