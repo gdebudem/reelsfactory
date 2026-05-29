@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   chromium \
   ffmpeg \
   fonts-liberation \
+  python3 \
+  make \
+  g++ \
   libnss3 \
   libnspr4 \
   libatk1.0-0 \
@@ -28,7 +31,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV REMOTION_CHROME_EXECUTABLE=/usr/bin/chromium
-ENV NODE_ENV=production
+
+# Install devDependencies too (tsx, prisma, typescript for worker)
+ENV NPM_CONFIG_PRODUCTION=false
 
 COPY package.json package-lock.json ./
 COPY apps/worker/package.json ./apps/worker/
@@ -45,5 +50,8 @@ COPY packages ./packages
 COPY apps/worker ./apps/worker
 
 RUN npx prisma generate --schema=./prisma/schema.prisma
+
+ENV NODE_ENV=production
+ENV NPM_CONFIG_PRODUCTION=true
 
 CMD ["npm", "run", "worker"]
