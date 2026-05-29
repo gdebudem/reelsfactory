@@ -1,4 +1,4 @@
-# Worker image for Railway — Remotion + Chromium system libraries
+# Worker image for Railway — Remotion + Chromium
 FROM node:20-bookworm
 
 WORKDIR /app
@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV REMOTION_CHROME_EXECUTABLE=/usr/bin/chromium
+ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
 COPY apps/worker/package.json ./apps/worker/
@@ -42,10 +43,7 @@ RUN npm install --legacy-peer-deps
 COPY prisma ./prisma
 COPY packages ./packages
 COPY apps/worker ./apps/worker
-COPY tsconfig.json ./
 
 RUN npx prisma generate --schema=./prisma/schema.prisma
-
-ENV NODE_ENV=production
 
 CMD ["npm", "run", "worker"]
