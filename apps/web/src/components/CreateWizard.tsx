@@ -145,11 +145,40 @@ export function CreateWizard() {
               {loading ? "Загрузка…" : "Подтянуть товар"}
             </button>
             {product && (
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
                 <p className="font-semibold">{product.title}</p>
                 {product.price != null && (
                   <p className="text-indigo-600 font-bold">
                     {product.price} {product.currency}
+                  </p>
+                )}
+                {product.brand && (
+                  <p className="text-sm text-slate-600">Бренд: {product.brand}</p>
+                )}
+                {product.specs && product.specs.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">
+                      Характеристики ({product.specs.length})
+                    </p>
+                    <ul className="mt-1 max-h-32 overflow-y-auto text-sm text-slate-700">
+                      {product.specs.slice(0, 6).map((s) => (
+                        <li key={`${s.name}-${s.value}`}>
+                          {s.name}: {s.value}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {product.reviews && product.reviews.length > 0 && (
+                  <p className="text-sm text-emerald-700">
+                    Отзывы на странице: {product.reviews.length}
+                    {product.aggregateRating &&
+                      ` · ★ ${product.aggregateRating.value}`}
+                  </p>
+                )}
+                {product.prosFromPage && product.prosFromPage.length > 0 && (
+                  <p className="text-xs text-slate-500">
+                    Преимущества: {product.prosFromPage.slice(0, 2).join(" · ")}
                   </p>
                 )}
               </div>

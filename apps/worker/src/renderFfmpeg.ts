@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import type { ProductCard, ReelScript } from "@reels-factory/shared";
@@ -27,16 +27,15 @@ function pickFontFile(...candidates: string[]): string {
   );
 }
 
-/** 720×1280 — fits Railway 1 GB; still good for mobile Reels. */
 const OUT_W = 720;
 const OUT_H = 1280;
-const DURATION_SEC = VIDEO_CONFIG.durationInFrames / VIDEO_CONFIG.fps;
+const FPS = VIDEO_CONFIG.fps;
+const DURATION_SEC = VIDEO_CONFIG.durationInFrames / FPS;
 
 export function shouldUseFfmpegRender(): boolean {
   const engine = process.env.RENDER_ENGINE?.trim().toLowerCase();
   if (engine === "remotion") return false;
   if (engine === "ffmpeg") return true;
-  // On Railway (1 GB plans) Chrome/Remotion often cannot start — use ffmpeg.
   return Boolean(process.env.RAILWAY_ENVIRONMENT);
 }
 
@@ -55,8 +54,10 @@ export async function renderReelWithFfmpeg(
   try {
     await writeImageFile(imageSrc, imagePath);
     const fonts = await copyFontsToDir(tmpDir);
-    const filter = buildFilter(script, fonts);
-    console.log(`[render:ffmpeg] ${OUT_W}x${OUT_H}, ${DURATION_SEC}s, job ${jobId}`);
+    const filter = buildSceneFilter(script, fonts);
+    console.log(
+      `[render:ffmpeg] ${OUT_W}x${OUT_H}, ${DURATION_SEC}s, ${script.scenes.length} scenes, job ${jobId}`
+    );
 
     await runFfmpeg(
       [
@@ -72,7 +73,7 @@ export async function renderReelWithFfmpeg(
         "-t",
         String(DURATION_SEC),
         "-r",
-        String(VIDEO_CONFIG.fps),
+        String(FPS),
         "-c:v",
         "libx264",
         "-preset",
@@ -119,43 +120,98 @@ async function copyFontsToDir(tmpDir: string): Promise<{
   return { bold: boldRel, regular: regularRel };
 }
 
-function buildFilter(
+function buildSceneFilter(
   script: ReelScript,
   fonts: { bold: string; regular: string }
 ): string {
   const frames = VIDEO_CONFIG.durationInFrames;
-  const ctaStart = frames - VIDEO_CONFIG.fps * 3;
-
-  const boldFont = fonts.bold;
-  const regularFont = fonts.regular;
-  const headline = escapeDrawtext(script.headline);
-  const sub = escapeDrawtext(script.subheadline);
-  const price = script.priceLabel
-    ? escapeDrawtext(script.priceLabel)
-    : null;
-  const cta = escapeDrawtext(script.ctaText);
+  const scenes =
+    script.scenes.length >= 3
+      ? script.scenes
+      : fallbackScenes(script);
 
   const lines = [
     `[0:v]scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease[scaled]`,
     `[scaled]pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2:color=0x0f172a[padded]`,
-    `[padded]zoompan=z='min(zoom+0.0010,1.05)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${VIDEO_CONFIG.fps}[base]`,
-    `[base]drawtext=fontfile=${boldFont}:text='${headline}':fontsize=34:fontcolor=white:x=(w-text_w)/2:y=50:shadowcolor=black@0.6:shadowx=2:shadowy=2[t1]`,
-    `[t1]drawtext=fontfile=${regularFont}:text='${sub}':fontsize=22:fontcolor=0xC4B5FD:x=(w-text_w)/2:y=100[t2]`,
+    `[padded]zoompan=z='min(zoom+0.0012,1.06)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}[base]`,
   ];
 
-  let last = "t2";
-  if (price) {
-    lines.push(
-      `[${last}]drawtext=fontfile=${boldFont}:text='${price}':fontsize=28:fontcolor=0xF59E0B:x=(w-text_w)/2:y=h-220[t3]`
+  let last = "base";
+  scenes.forEach((scene, index) => {
+    const start = Math.max(0, Math.round(scene.startSec * FPS));
+    const end = Math.min(
+      frames - 1,
+      Math.max(start + 1, Math.round(scene.endSec * FPS) - 1)
     );
-    last = "t3";
+    const enable = `between(n\\,${start}\\,${end})`;
+    const style = scene.style ?? "subheadline";
+    const text = escapeDrawtext(scene.text);
+    const label = index === scenes.length - 1 ? "v" : `s${index}`;
+
+    const cfg = sceneStyle(style, fonts, text, enable);
+    lines.push(`[${last}]drawtext=${cfg}[${label}]`);
+    last = label;
+  });
+
+  if (last !== "v") {
+    lines.push(`[${last}]null[v]`);
   }
 
-  lines.push(
-    `[${last}]drawtext=fontfile=${boldFont}:text='${cta}':fontsize=26:fontcolor=0x312E81:box=1:boxcolor=white@0.95:boxborderw=16:x=(w-text_w)/2:y=h-120:enable='gte(n,${ctaStart})'[v]`
-  );
-
   return lines.join(";");
+}
+
+function sceneStyle(
+  style: string,
+  fonts: { bold: string; regular: string },
+  text: string,
+  enable: string
+): string {
+  const bold = fonts.bold;
+  const regular = fonts.regular;
+
+  switch (style) {
+    case "headline":
+      return `fontfile=${bold}:text='${text}':fontsize=36:fontcolor=white:x=(w-text_w)/2:y=80:shadowcolor=black@0.7:shadowx=2:shadowy=2:enable='${enable}'`;
+    case "bullet":
+      return `fontfile=${bold}:text='• ${text}':fontsize=28:fontcolor=white:box=1:boxcolor=0x312E81@0.85:boxborderw=14:x=(w-text_w)/2:y=h/2-40:enable='${enable}'`;
+    case "review":
+      return `fontfile=${regular}:text='${text}':fontsize=24:fontcolor=0xFDE68A:x=(w-text_w)/2:y=h-280:shadowcolor=black@0.5:shadowx=1:shadowy=1:enable='${enable}'`;
+    case "cta":
+      return `fontfile=${bold}:text='${text}':fontsize=26:fontcolor=0x312E81:box=1:boxcolor=white@0.95:boxborderw=16:x=(w-text_w)/2:y=h-110:enable='${enable}'`;
+    case "subheadline":
+    default:
+      return `fontfile=${regular}:text='${text}':fontsize=24:fontcolor=0xC4B5FD:x=(w-text_w)/2:y=140:enable='${enable}'`;
+  }
+}
+
+function fallbackScenes(script: ReelScript) {
+  return [
+    { startSec: 0, endSec: 3, text: script.headline, style: "headline" as const },
+    {
+      startSec: 3,
+      endSec: 8,
+      text: script.subheadline,
+      style: "subheadline" as const,
+    },
+    ...(script.bullets?.[0]
+      ? [
+          {
+            startSec: 8,
+            endSec: 11,
+            text: script.bullets[0],
+            style: "bullet" as const,
+          },
+        ]
+      : []),
+    {
+      startSec: 11,
+      endSec: 15,
+      text: script.priceLabel
+        ? `${script.priceLabel} · ${script.ctaText}`
+        : script.ctaText,
+      style: "cta" as const,
+    },
+  ];
 }
 
 function escapeDrawtext(value: string): string {
@@ -164,7 +220,7 @@ function escapeDrawtext(value: string): string {
     .replace(/:/g, "\\:")
     .replace(/'/g, "'\\''")
     .replace(/%/g, "\\%")
-    .slice(0, 80);
+    .slice(0, 90);
 }
 
 function runFfmpeg(args: string[], cwd: string): Promise<void> {
@@ -183,7 +239,7 @@ function runFfmpeg(args: string[], cwd: string): Promise<void> {
     proc.on("close", (code) => {
       if (code === 0) resolve();
       else {
-        const tail = stderr.split("\n").slice(-8).join("\n");
+        const tail = stderr.split("\n").slice(-10).join("\n");
         reject(new Error(`ffmpeg exited ${code}: ${tail}`));
       }
     });

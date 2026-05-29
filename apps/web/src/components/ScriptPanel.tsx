@@ -3,7 +3,8 @@ import type { ReelScript } from "@reels-factory/shared";
 const SCENE_STYLE_LABEL: Record<string, string> = {
   headline: "Заголовок",
   subheadline: "Подзаголовок",
-  bullet: "Пункт",
+  bullet: "Преимущество",
+  review: "Отзыв",
   cta: "Призыв",
 };
 
@@ -27,6 +28,12 @@ export function ScriptPanel({ script }: { script: ReelScript }) {
           <div>
             <p className="text-xs text-slate-500">Цена на экране</p>
             <p className="font-semibold text-amber-700">{script.priceLabel}</p>
+          </div>
+        )}
+        {script.reviewQuote && (
+          <div>
+            <p className="text-xs text-slate-500">Цитата из отзыва</p>
+            <p className="italic text-amber-800">{script.reviewQuote}</p>
           </div>
         )}
         {script.bullets && script.bullets.length > 0 && (

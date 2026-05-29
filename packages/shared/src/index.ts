@@ -34,6 +34,26 @@ export const JOB_STATUSES = [
 
 export const TIERS = ["basic", "premium"] as const;
 
+export const productSpecSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+});
+
+export const productReviewSchema = z.object({
+  text: z.string(),
+  rating: z.number().min(0).max(5).optional(),
+  author: z.string().optional(),
+});
+
+export const aggregateRatingSchema = z.object({
+  value: z.number().min(0).max(5),
+  count: z.number().int().nonnegative().optional(),
+});
+
+export type ProductSpec = z.infer<typeof productSpecSchema>;
+export type ProductReview = z.infer<typeof productReviewSchema>;
+export type AggregateRating = z.infer<typeof aggregateRatingSchema>;
+
 export const productCardSchema = z.object({
   title: z.string(),
   price: z.number().nullable(),
@@ -41,6 +61,12 @@ export const productCardSchema = z.object({
   images: z.array(z.string().url()),
   description: z.string().optional(),
   sourceUrl: z.string().url(),
+  brand: z.string().optional(),
+  category: z.string().optional(),
+  specs: z.array(productSpecSchema).optional(),
+  reviews: z.array(productReviewSchema).optional(),
+  prosFromPage: z.array(z.string()).optional(),
+  aggregateRating: aggregateRatingSchema.optional(),
 });
 
 export type ProductCard = z.infer<typeof productCardSchema>;
@@ -93,7 +119,7 @@ export const sceneSchema = z.object({
   startSec: z.number(),
   endSec: z.number(),
   text: z.string(),
-  style: z.enum(["headline", "subheadline", "bullet", "cta"]).optional(),
+  style: z.enum(["headline", "subheadline", "bullet", "review", "cta"]).optional(),
 });
 
 export const reelScriptSchema = z.object({
@@ -102,6 +128,7 @@ export const reelScriptSchema = z.object({
   priceLabel: z.string().optional(),
   ctaText: z.string(),
   bullets: z.array(z.string()).optional(),
+  reviewQuote: z.string().optional(),
   scenes: z.array(sceneSchema),
   templateId: z.enum(["promo", "features"]).default("promo"),
 });
