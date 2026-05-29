@@ -10,6 +10,7 @@ import type {
 import type { z } from "zod";
 import { generateReelScript } from "@reels-factory/ai-script";
 import { getRenderMode, renderReelToS3 } from "./render.js";
+import { ensureRemotionBrowser } from "./remotionBrowser.js";
 import { hasStorageConfigured } from "./storage.js";
 
 const prisma = new PrismaClient();
@@ -108,14 +109,25 @@ const worker = new Worker(
 );
 
 worker.on("ready", () => {
-  console.log(`[worker] Listening on queue "${QUEUE_NAME}"`);
-  console.log(
-    `[worker] Storage (S3/R2): ${hasStorageConfigured() ? "configured" : "MISSING"}`
-  );
-  console.log(`[worker] Render mode: ${getRenderMode()}`);
-  if (getRenderMode() === "demo") {
-    console.log("[worker] Add S3_* vars — see R2_SETUP.md in repo");
-  }
+  void (async () => {
+    console.log(`[worker] Listening on queue "${QUEUE_NAME}"`);
+    console.log(
+      `[worker] Storage (S3/R2): ${hasStorageConfigured() ? "configured" : "MISSING"}`
+    );
+    console.log(`[worker] Render mode: ${getRenderMode()}`);
+    if (getRenderMode() === "demo") {
+      console.log("[worker] Add S3_* vars — see R2_SETUP.md in repo");
+      return;
+    }
+    try {
+      console.log("[worker] Ensuring Remotion Chrome Headless Shell…");
+      await ensureRemotionBrowser();
+      console.log("[worker] Browser ready");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[worker] Browser preflight failed (will retry on job):", msg);
+    }
+  })();
 });
 
 process.on("SIGINT", async () => {

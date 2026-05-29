@@ -31,6 +31,15 @@ Railpack **не подходит** для Remotion (нет `libnspr4`).
 
 Do **not** set `MOCK_RENDER=true` for production.
 
+## Memory (important)
+
+Remotion needs **≥ 2 GB RAM** for stable renders. If you see  
+`Timed out while setting up the headless browser`, in Railway → **Scale** set **Memory to 2 GB** (or higher).
+
+Optional env:
+- `REMOTION_TIMEOUT_MS=300000` — render timeout (default 5 min)
+- `REMOTION_MULTI_PROCESS=true` — faster on multi-GB plans only
+
 ## Logs (success)
 
 ```text

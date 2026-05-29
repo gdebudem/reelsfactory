@@ -1,37 +1,38 @@
-# Worker image for Railway — Remotion + Chromium
+# Worker image for Railway — Remotion Chrome Headless Shell
 FROM node:20-bookworm
 
 WORKDIR /app
 
+# https://www.remotion.dev/docs/miscellaneous/linux-dependencies (Debian)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  chromium \
-  ffmpeg \
-  fonts-liberation \
-  python3 \
-  make \
-  g++ \
   libnss3 \
-  libnspr4 \
+  libdbus-1-3 \
   libatk1.0-0 \
   libatk-bridge2.0-0 \
-  libcups2 \
-  libdrm2 \
-  libdbus-1-3 \
+  libasound2 \
+  libxrandr2 \
   libxkbcommon0 \
+  libxfixes3 \
   libxcomposite1 \
   libxdamage1 \
-  libxfixes3 \
-  libxrandr2 \
   libgbm1 \
-  libasound2 \
-  libpango-1.0-0 \
+  libcups2 \
   libcairo2 \
+  libpango-1.0-0 \
+  libglib2.0-0 \
+  libx11-6 \
+  libxcb1 \
+  libxext6 \
+  libxrender1 \
+  libxi6 \
+  fonts-liberation \
+  fonts-noto-core \
   ca-certificates \
+  ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-ENV REMOTION_CHROME_EXECUTABLE=/usr/bin/chromium
+ENV NODE_OPTIONS=--max-old-space-size=768
 ENV NPM_CONFIG_PRODUCTION=false
 
 COPY package.json package-lock.json ./
@@ -49,6 +50,7 @@ COPY packages ./packages
 COPY apps/worker ./apps/worker
 
 RUN npx prisma generate --schema=./prisma/schema.prisma \
+  && npx remotion browser ensure \
   && test -x node_modules/.bin/tsx
 
 ENV NODE_ENV=production
