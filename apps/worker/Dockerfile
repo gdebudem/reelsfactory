@@ -1,4 +1,5 @@
 # Worker image for Railway — ffmpeg render (1 GB RAM, no Chrome)
+# build: 2026-05-29 (no remotion browser in image)
 FROM node:20-bookworm
 
 WORKDIR /app
