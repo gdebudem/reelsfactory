@@ -4,16 +4,16 @@
 
 Railpack **не подходит** для Remotion (нет `libnspr4`).
 
-1. Railway → `@reels-factory/worker` → **Settings**
-2. **Build** → Builder: **Dockerfile**
-3. Dockerfile path: `apps/worker/Dockerfile`
-4. **Root Directory:** пусто / `.` (корень репозитория, **не** `apps/worker`)
-5. **Build Command:** пусто
-6. **Deploy / Redeploy**
+Настройки задаются в корневом **`railway.toml`** (config-as-code перекрывает UI):
 
-Если сборка падает — открой **View logs** у failed deploy и ищи красную строку с `ERROR`.
+- Builder: **Dockerfile** → `apps/worker/Dockerfile`
+- **Start command:** `npm run worker`
+- **Serverless:** выключен (`sleepApplication = false`)
+- **Root Directory:** не задавать (корень репо)
 
-Или используйте `railway.toml` в корне репо.
+После push в `main` Railway деплоит автоматически. Ручной **Redeploy** — если нужно пересобрать без коммита.
+
+Если сборка падает — **View logs** у failed deploy, строка с `ERROR`.
 
 ## Variables
 

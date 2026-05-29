@@ -30,9 +30,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV REMOTION_CHROME_EXECUTABLE=/usr/bin/chromium
-
-# Install devDependencies too (tsx, prisma, typescript for worker)
 ENV NPM_CONFIG_PRODUCTION=false
 
 COPY package.json package-lock.json ./
@@ -43,15 +42,15 @@ COPY packages/ai-script/package.json ./packages/ai-script/
 COPY packages/product-parser/package.json ./packages/product-parser/
 COPY packages/video-templates/package.json ./packages/video-templates/
 
-RUN npm install --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 
 COPY prisma ./prisma
 COPY packages ./packages
 COPY apps/worker ./apps/worker
 
-RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN npx prisma generate --schema=./prisma/schema.prisma \
+  && test -x node_modules/.bin/tsx
 
 ENV NODE_ENV=production
-ENV NPM_CONFIG_PRODUCTION=true
 
 CMD ["npm", "run", "worker"]
