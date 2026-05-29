@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "npm run dev --workspace=@reels-factory/web",
     "worker": "npm run start --workspace=@reels-factory/worker",
+    "test:ffmpeg": "tsx apps/worker/scripts/test-ffmpeg-render.ts",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "db:generate": "npm run db:generate --workspace=@reels-factory/web",
