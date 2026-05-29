@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhonePreview } from "./PhonePreview";
 import { ScriptPanel } from "./ScriptPanel";
+import { isDemoVideoUrl } from "@/lib/video";
 import type { ProductCard, ReelScript } from "@reels-factory/shared";
 
 type Job = {
@@ -75,38 +76,63 @@ export function JobProgress({ jobId }: { jobId: string }) {
     );
   }
 
-  if (job.status === "ready" && job.videoUrl) {
+  if (job.status === "ready") {
+    const demoVideo = isDemoVideoUrl(job.videoUrl);
+
     return (
       <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-bold text-green-700">Готово!</h2>
-            <p className="mt-2 text-slate-600">
-              Скачайте ролик и публикуйте в соцсетях
-            </p>
-            <video
-              src={job.videoUrl}
-              controls
-              className="mt-6 w-full max-w-md rounded-2xl shadow-lg"
-            />
-            <a
-              href={job.videoUrl}
-              download
-              className="mt-4 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white"
-            >
-              Скачать MP4
-            </a>
+            <h2 className="text-2xl font-bold text-green-700">
+              {demoVideo ? "Сценарий готов!" : "Готово!"}
+            </h2>
+            {demoVideo ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-medium">Видео в плеере — демо-заглушка</p>
+                <p className="mt-1">
+                  OpenAI уже написал ваш сценарий (слева). Реальный MP4 с вашим
+                  товаром появится после настройки хранилища (S3/R2) и рендера
+                  на worker.
+                </p>
+                <p className="mt-2 text-amber-800">
+                  Смотрите превью справа — там ваш товар и новый текст.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-slate-600">
+                Скачайте ролик и публикуйте в соцсетях
+              </p>
+            )}
+            {job.videoUrl && !demoVideo && (
+              <>
+                <video
+                  src={job.videoUrl}
+                  controls
+                  className="mt-6 w-full max-w-md rounded-2xl shadow-lg"
+                />
+                <a
+                  href={job.videoUrl}
+                  download
+                  className="mt-4 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white"
+                >
+                  Скачать MP4
+                </a>
+              </>
+            )}
             <button
               type="button"
               onClick={() => router.push("/create")}
-              className="ml-4 mt-4 text-indigo-600 underline"
+              className="mt-4 text-indigo-600 underline"
             >
               Создать ещё
             </button>
           </div>
           {script && <ScriptPanel script={script} />}
         </div>
-        <div className="flex justify-center lg:justify-end">
+        <div className="flex flex-col items-center gap-3 lg:items-end">
+          <p className="text-center text-sm font-medium text-slate-600 lg:text-right">
+            Превью вашего ролика
+          </p>
           <PhonePreview product={product} script={script} />
         </div>
       </div>
