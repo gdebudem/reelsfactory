@@ -20,8 +20,10 @@ Railpack **не подходит** для Remotion (нет `libnspr4`).
 | Variable | Required |
 |----------|----------|
 | `DATABASE_URL` | yes |
-| `REDIS_URL` | yes |
+| `REDIS_URL` | optional (only if `QUEUE_MODE=redis`) |
 | `OPENAI_API_KEY` | yes |
+
+**Queue mode (default `postgres`):** worker polls Neon for `status=queued` jobs — **Redis not required**. Set `QUEUE_MODE=redis` only if you use Redis with quota headroom.
 | `S3_ENDPOINT` | yes (R2) |
 | `S3_REGION` | `auto` for R2 |
 | `S3_BUCKET` | yes |

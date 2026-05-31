@@ -7,12 +7,12 @@ import {
 } from "@/lib/env";
 import { DEFAULT_OPENAI_MODEL } from "@reels-factory/ai-script";
 
-import { pingRedis } from "@/lib/redis";
+import { getQueueMode, pingRedis } from "@/lib/queue";
 
 export async function GET() {
   const redisConfigured = hasRedisConfigured();
   let redisOk = false;
-  if (redisConfigured) {
+  if (redisConfigured && getQueueMode() === "redis") {
     try {
       redisOk = await pingRedis();
     } catch {
@@ -24,9 +24,10 @@ export async function GET() {
     ok: true,
     service: "reels-factory",
     version: "1.0.0",
+    queueMode: getQueueMode(),
     dbConfigured: hasDatabaseConfigured(),
     redisConfigured,
-    redisOk,
+    redisOk: getQueueMode() === "redis" ? redisOk : null,
     openaiConfigured: hasOpenAiConfigured(),
     openaiModel: hasOpenAiConfigured()
       ? process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL

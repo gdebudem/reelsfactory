@@ -9,7 +9,7 @@ import {
   hasRedisConfigured,
 } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { enqueueRenderJob } from "@/lib/redis";
+import { enqueueRenderJob, getQueueMode } from "@/lib/queue";
 import { getStripePriceId, getTierAmount, stripe } from "@/lib/stripe";
 
 export type PipelineResult =
@@ -163,7 +163,7 @@ export async function runReelPipeline(
     data: { status: "paid", tier: data.tier },
   });
 
-  if (!hasRedisConfigured()) {
+  if (!hasRedisConfigured() && getQueueMode() === "redis") {
     const p = envProblemResponse("redis");
     return { ok: false, status: p.status, body: p.body };
   }

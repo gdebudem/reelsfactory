@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { enqueueRenderJob } from "@/lib/redis";
+import { enqueueRenderJob, getQueueMode } from "@/lib/queue";
 import { prisma } from "@/lib/prisma";
 import { generateReelScript } from "@reels-factory/ai-script";
 import type { ProductCard } from "@reels-factory/shared";
@@ -13,7 +13,7 @@ export async function POST(
     const p = envProblemResponse("db");
     return NextResponse.json(p.body, { status: p.status });
   }
-  if (!hasRedisConfigured()) {
+  if (!hasRedisConfigured() && getQueueMode() === "redis") {
     const p = envProblemResponse("redis");
     return NextResponse.json(p.body, { status: p.status });
   }
