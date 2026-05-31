@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRenderQueue } from "@/lib/redis";
+import { enqueueRenderJob } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { generateReelScript } from "@reels-factory/ai-script";
 import type { ProductCard } from "@reels-factory/shared";
@@ -66,7 +66,7 @@ export async function POST(
   }
 
   try {
-    await getRenderQueue().add("render", { jobId: id }, { jobId: id });
+    await enqueueRenderJob(id);
     await prisma.reelJob.update({
       where: { id },
       data: { status: "queued" },

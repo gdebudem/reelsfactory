@@ -9,7 +9,7 @@ import {
   hasRedisConfigured,
 } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { getRenderQueue } from "@/lib/redis";
+import { enqueueRenderJob } from "@/lib/redis";
 import { getStripePriceId, getTierAmount, stripe } from "@/lib/stripe";
 
 export type PipelineResult =
@@ -169,7 +169,7 @@ export async function runReelPipeline(
   }
 
   try {
-    await getRenderQueue().add("render", { jobId: job.id }, { jobId: job.id });
+    await enqueueRenderJob(job.id);
     await prisma.reelJob.update({
       where: { id: job.id },
       data: { status: "queued" },

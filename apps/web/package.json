@@ -19,6 +19,7 @@
     "@reels-factory/product-parser": "*",
     "@reels-factory/shared": "*",
     "bullmq": "^5.34.5",
+    "ioredis": "^5.4.2",
     "next": "15.5.18",
     "next-auth": "^4.24.11",
     "nodemailer": "^7.0.7",

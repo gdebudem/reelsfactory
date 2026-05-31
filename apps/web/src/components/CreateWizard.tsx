@@ -83,7 +83,12 @@ export function CreateWizard() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Ошибка");
+      if (!res.ok) {
+        const msg = data.details
+          ? `${data.error}: ${data.details}`
+          : (data.error ?? "Ошибка");
+        throw new Error(msg);
+      }
 
       if (data.skipPayment) {
         router.push(`/create/result/${data.jobId}?started=1`);
