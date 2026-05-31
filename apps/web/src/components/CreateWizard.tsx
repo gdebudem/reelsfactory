@@ -141,6 +141,9 @@ export function CreateWizard() {
               onChange={(e) => setProductUrl(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
+            <p className="text-xs text-slate-500">
+              Лучше работает с товарами, у которых есть отзывы в интернете
+            </p>
             <button
               type="button"
               onClick={parseProduct}
@@ -152,6 +155,18 @@ export function CreateWizard() {
             {product && (
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
                 <p className="font-semibold">{product.title}</p>
+                {product.images.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {product.images.slice(0, 5).map((img, i) => (
+                      <img
+                        key={img}
+                        src={img}
+                        alt={`Фото ${i + 1}`}
+                        className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover"
+                      />
+                    ))}
+                  </div>
+                )}
                 {product.price != null && (
                   <p className="text-indigo-600 font-bold">
                     {product.price} {product.currency}

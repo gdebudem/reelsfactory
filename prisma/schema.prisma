@@ -66,8 +66,9 @@ model ReelJob {
   customHighlight String?
   ctaType         String
   ctaValue        String?
-  scriptJson      Json?
-  status          String    @default("draft")
+  scriptJson        Json?
+  productIntelJson  Json?
+  status            String    @default("draft")
   videoUrl        String?
   errorMessage    String?
   tier            String    @default("basic")

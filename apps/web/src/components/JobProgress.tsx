@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhonePreview } from "./PhonePreview";
 import { ScriptPanel } from "./ScriptPanel";
+import { IntelPanel, jobStatusLabel } from "./IntelPanel";
 import { isDemoVideoUrl } from "@/lib/video";
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type { ProductCard, ProductIntel, ReelScript } from "@reels-factory/shared";
 
 type Job = {
   id: string;
@@ -13,6 +14,7 @@ type Job = {
   videoUrl: string | null;
   errorMessage: string | null;
   productJson: ProductCard;
+  productIntelJson: ProductIntel | null;
   scriptJson: ReelScript | null;
 };
 
@@ -54,6 +56,8 @@ export function JobProgress({
       const status = statusData.job?.status as string | undefined;
       if (
         status === "queued" ||
+        status === "researching" ||
+        status === "scripting" ||
         status === "rendering" ||
         status === "ready" ||
         status === "failed"
@@ -67,6 +71,7 @@ export function JobProgress({
 
   const product = job?.productJson;
   const script = job?.scriptJson;
+  const intel = job?.productIntelJson;
 
   if (!job) {
     return (
@@ -145,6 +150,7 @@ export function JobProgress({
             </button>
           </div>
           {script && <ScriptPanel script={script} />}
+          {intel && <IntelPanel intel={intel} />}
         </div>
         <div className="flex flex-col items-center gap-3 lg:items-end">
           <p className="text-center text-sm font-medium text-slate-600 lg:text-right">
@@ -162,11 +168,22 @@ export function JobProgress({
         <div className="py-6 lg:py-0">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600 lg:mx-0" />
           <h2 className="mt-6 text-2xl font-bold">Создаём ваш ролик…</h2>
-          <p className="mt-2 text-slate-600">Обычно ~2 минуты</p>
-          <p className="mt-4 text-sm text-slate-500">Статус: {job.status}</p>
+          <p className="mt-2 text-slate-600">Обычно ~1–2 минуты</p>
+          <p className="mt-4 text-sm font-medium text-indigo-700">
+            {jobStatusLabel(job.status)}
+          </p>
         </div>
+        {intel ? (
+          <IntelPanel intel={intel} />
+        ) : job.status === "researching" || job.status === "queued" ? (
+          <p className="text-sm text-slate-500">
+            ИИ ищет отзывы и упоминания товара в интернете…
+          </p>
+        ) : null}
         {script ? (
           <ScriptPanel script={script} />
+        ) : job.status === "scripting" || job.status === "researching" ? (
+          <p className="text-sm text-slate-500">Готовим вирусный сценарий…</p>
         ) : (
           <p className="text-sm text-slate-500">Готовим сценарий…</p>
         )}

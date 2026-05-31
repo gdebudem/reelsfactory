@@ -22,6 +22,8 @@ Railpack **не подходит** для Remotion (нет `libnspr4`).
 | `DATABASE_URL` | yes |
 | `REDIS_URL` | optional (only if `QUEUE_MODE=redis`) |
 | `OPENAI_API_KEY` | yes |
+| `TAVILY_API_KEY` | optional (web research; without it uses page data only) |
+| `PLAYWRIGHT_PARSER` | auto `true` on Railway (Bitrix/JS sites) |
 
 **Queue mode (default `postgres`):** worker polls Neon for `status=queued` jobs — **Redis not required**. Set `QUEUE_MODE=redis` only if you use Redis with quota headroom.
 | `S3_ENDPOINT` | yes (R2) |
@@ -35,8 +37,10 @@ Do **not** set `MOCK_RENDER=true` for production.
 
 ## Memory (1 GB plan)
 
-On Railway with **1 GB RAM** (plan limit), the worker uses **ffmpeg** automatically — no Chrome, no Remotion at runtime.  
-You should see in logs: `[worker] Render engine: ffmpeg`.
+On Railway with **1 GB RAM** (plan limit), the worker uses **ffmpeg viral_v1** automatically — no Chrome, no Remotion at runtime.  
+You should see in logs: `[worker] Render engine: ffmpeg viral_v1`.
+
+Playwright runs during job parse for JS-heavy product pages (~300 MB in Docker image).
 
 To force Remotion (only if you upgrade to **2 GB+** RAM):
 

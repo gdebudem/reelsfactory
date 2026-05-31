@@ -6,6 +6,7 @@ import {
   type DeepProductFields,
 } from "./extract-deep";
 import { extractImagesFromHtml } from "./extract-images";
+import { isPlaywrightEnabled, isProductParsePoor } from "./parse-quality";
 
 const FETCH_TIMEOUT_MS = 15000;
 const USER_AGENT =
@@ -188,7 +189,7 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
     html = await res.text();
   } catch (e) {
     if (e instanceof ProductParseError) throw e;
-    if (process.env.PLAYWRIGHT_PARSER === "true") {
+    if (isPlaywrightEnabled()) {
       try {
         const { parseWithPlaywright } = await import("./playwright");
         return parseWithPlaywright(url);
@@ -224,7 +225,7 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
   ].filter((img, idx, arr) => img && arr.indexOf(img) === idx);
 
   if (images.length === 0) {
-    if (process.env.PLAYWRIGHT_PARSER === "true") {
+    if (isPlaywrightEnabled()) {
       try {
         const { parseWithPlaywright } = await import("./playwright");
         return parseWithPlaywright(url);
@@ -235,7 +236,7 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
     throw new ProductParseError("Не удалось найти изображение товара");
   }
 
-  return {
+  const card: ProductCard = {
     title: cleanProductTitle(title),
     price: jsonLd?.price ?? og.price ?? null,
     currency: jsonLd?.currency ?? og.currency ?? "RUB",
@@ -250,6 +251,18 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
     prosFromPage: deep.prosFromPage,
     aggregateRating: deep.aggregateRating,
   };
+
+  if (isProductParsePoor(card) && isPlaywrightEnabled()) {
+    try {
+      const { parseWithPlaywright } = await import("./playwright");
+      const pwCard = await parseWithPlaywright(url);
+      return mergeProductCards(card, pwCard);
+    } catch {
+      /* use HTML card */
+    }
+  }
+
+  return card;
 }
 
 function mergeDeepFields(
@@ -298,5 +311,35 @@ function mergeDeepFields(
     specs: dedupeSpecs(specs).slice(0, 40) || undefined,
     reviews: dedupeReviews(reviews).slice(0, 8) || undefined,
     prosFromPage: [...new Set(prosFromPage)].slice(0, 12) || undefined,
+  };
+}
+
+export { isProductParsePoor, isPlaywrightEnabled } from "./parse-quality";
+
+function mergeProductCards(html: ProductCard, pw: ProductCard): ProductCard {
+  const images = [...html.images, ...pw.images].filter(
+    (img, idx, arr) => img && arr.indexOf(img) === idx
+  );
+  return {
+    title: pw.title || html.title,
+    price: pw.price ?? html.price,
+    currency: pw.currency ?? html.currency,
+    images: images.slice(0, 5),
+    description: pw.description || html.description,
+    sourceUrl: html.sourceUrl,
+    brand: pw.brand || html.brand,
+    category: pw.category || html.category,
+    specs:
+      (pw.specs?.length ?? 0) >= (html.specs?.length ?? 0)
+        ? pw.specs
+        : html.specs ?? pw.specs,
+    reviews:
+      (pw.reviews?.length ?? 0) >= (html.reviews?.length ?? 0)
+        ? pw.reviews
+        : html.reviews ?? pw.reviews,
+    prosFromPage: pw.prosFromPage?.length
+      ? pw.prosFromPage
+      : html.prosFromPage,
+    aggregateRating: pw.aggregateRating ?? html.aggregateRating,
   };
 }

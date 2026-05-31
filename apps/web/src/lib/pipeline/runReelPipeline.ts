@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import type Stripe from "stripe";
 import { createReelJobSchema } from "@reels-factory/shared";
-import { generateReelScript } from "@reels-factory/ai-script";
 import { authOptions } from "@/lib/auth";
 import {
   envProblemResponse,
@@ -16,14 +15,12 @@ export type PipelineResult =
   | {
       ok: true;
       jobId: string;
-      script: Awaited<ReturnType<typeof generateReelScript>>;
       skipPayment: true;
       status: "queued";
     }
   | {
       ok: true;
       jobId: string;
-      script: Awaited<ReturnType<typeof generateReelScript>>;
       skipPayment: false;
       url: string;
     };
@@ -70,20 +67,7 @@ export async function runReelPipeline(
     },
   });
 
-  const script = await generateReelScript({
-    product: data.product,
-    reelType: data.reelType,
-    highlights: data.highlights,
-    customHighlight: data.customHighlight,
-    ctaType: data.ctaType,
-    ctaValue: data.ctaValue,
-    tier: data.tier,
-  });
-
-  await prisma.reelJob.update({
-    where: { id: job.id },
-    data: { scriptJson: script, templateId: script.templateId },
-  });
+  // Script + research run on worker (researching → scripting → rendering)
 
   if (process.env.SKIP_PAYMENT !== "true") {
     if (!stripe) {
@@ -152,7 +136,6 @@ export async function runReelPipeline(
     return {
       ok: true,
       jobId: job.id,
-      script,
       skipPayment: false,
       url: checkoutSession.url,
     };
@@ -187,7 +170,6 @@ export async function runReelPipeline(
         error: "Не удалось поставить задачу в очередь",
         details: message,
         jobId: job.id,
-        script,
       },
     };
   }
@@ -195,7 +177,6 @@ export async function runReelPipeline(
   return {
     ok: true,
     jobId: job.id,
-    script,
     skipPayment: true,
     status: "queued",
   };

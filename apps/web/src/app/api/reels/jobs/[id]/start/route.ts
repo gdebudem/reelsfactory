@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { enqueueRenderJob, getQueueMode } from "@/lib/queue";
 import { prisma } from "@/lib/prisma";
-import { generateReelScript } from "@reels-factory/ai-script";
-import type { ProductCard } from "@reels-factory/shared";
 import { envProblemResponse, hasDatabaseConfigured, hasRedisConfigured } from "@/lib/env";
 
 export async function POST(
@@ -26,6 +24,8 @@ export async function POST(
 
   if (
     job.status === "queued" ||
+    job.status === "researching" ||
+    job.status === "scripting" ||
     job.status === "rendering" ||
     job.status === "ready"
   ) {
@@ -45,23 +45,6 @@ export async function POST(
     await prisma.reelJob.update({
       where: { id },
       data: { status: "paid" },
-    });
-  }
-
-  const product = job.productJson as ProductCard;
-  if (!job.scriptJson) {
-    const script = await generateReelScript({
-      product,
-      reelType: job.reelType as "promo",
-      highlights: job.highlights,
-      customHighlight: job.customHighlight ?? undefined,
-      ctaType: job.ctaType as "website",
-      ctaValue: job.ctaValue ?? undefined,
-      tier: job.tier as "basic" | "premium",
-    });
-    await prisma.reelJob.update({
-      where: { id },
-      data: { scriptJson: script, templateId: script.templateId },
     });
   }
 

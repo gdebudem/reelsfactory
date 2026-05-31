@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildMockScript } from "@reels-factory/ai-script";
+import { buildViralMockScript } from "@reels-factory/ai-script";
 
 process.env.RENDER_ENGINE = "ffmpeg";
 delete process.env.RAILWAY_ENVIRONMENT;
@@ -16,7 +16,12 @@ const product = {
   title: "Автомобильный компрессор X200",
   price: 4990,
   currency: "RUB",
-  images: ["https://placehold.co/600x800/312e81/ffffff/png?text=Test"],
+  images: [
+    "https://placehold.co/600x800/312e81/ffffff/png?text=1",
+    "https://placehold.co/600x800/4338ca/ffffff/png?text=2",
+    "https://placehold.co/600x800/6366f1/ffffff/png?text=3",
+    "https://placehold.co/600x800/818cf8/ffffff/png?text=4",
+  ],
   sourceUrl: "https://example.com/product",
   brand: "Rubin",
   specs: [
@@ -34,7 +39,7 @@ const product = {
   prosFromPage: ["Компактный размер", "LED-подсветка"],
 };
 
-const script = buildMockScript({
+const script = buildViralMockScript({
   product,
   reelType: "features",
   highlights: ["надёжность"],

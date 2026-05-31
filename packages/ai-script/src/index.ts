@@ -1,6 +1,7 @@
 import {
   reelScriptSchema,
   type ProductCard,
+  type ProductIntel,
   type ReelScript,
   reelTypeSchema,
   ctaTypeSchema,
@@ -26,6 +27,7 @@ export function getOpenAiModel() {
 }
 
 export { buildProductContext, rankConsumerHooks, pickReviewQuote } from "./product-hooks";
+export { buildViralMockScript } from "./viral-script";
 
 const TONE_BY_TYPE: Record<ReelType, string> = {
   promo: "яркий, срочный, акцент на выгоде и цене",
@@ -37,6 +39,7 @@ const TONE_BY_TYPE: Record<ReelType, string> = {
 
 export interface GenerateScriptInput {
   product: ProductCard;
+  productIntel?: ProductIntel;
   reelType: ReelType;
   highlights: string[];
   customHighlight?: string;
@@ -129,58 +132,68 @@ export function buildMockScript(input: GenerateScriptInput): ReelScript {
 export async function generateReelScript(
   input: GenerateScriptInput
 ): Promise<ReelScript> {
+  const { buildViralMockScript } = await import("./viral-script");
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return buildMockScript(input);
+    return buildViralMockScript(input, input.productIntel);
   }
 
   const openai = new OpenAI({ apiKey });
   const priceStr = formatPrice(input.product);
   const productData = buildProductContext(input.product);
-  const suggestedHooks = rankConsumerHooks(input.product, [
-    ...input.highlights,
-    ...(input.customHighlight ? [input.customHighlight] : []),
-  ]);
+  const intel = input.productIntel;
+  const suggestedHooks = intel?.rankedSellingPoints?.length
+    ? intel.rankedSellingPoints
+    : rankConsumerHooks(input.product, [
+        ...input.highlights,
+        ...(input.customHighlight ? [input.customHighlight] : []),
+      ]);
 
-  const system = `Ты копирайтер для коротких рекламных Reels (15 сек, вертикальное видео 9:16).
-Пиши на русском. Тон: ${TONE_BY_TYPE[input.reelType]}.
+  const system = `Ты копирайтер вирусных product Reels (15 сек, 9:16). Язык: русский. Тон: ${TONE_BY_TYPE[input.reelType]}.
+
+Формула Hook → Pain → Proof → Offer+CTA (ровно 4 сцены):
+1. hook (0–3.75с): остановить скролл, вопрос или интрига, макс 8 слов
+2. pain (3.75–7.5с): боль покупателя, эмпатия, макс 8 слов
+3. proof (7.5–11.25с): факт/цифра + social proof или цитата отзыва, макс 10 слов
+4. cta (11.25–15с): цена + призыв, макс 8 слов
 
 Правила:
-- Используй ТОЛЬКО факты из productData (характеристики, отзывы, pros). НЕ выдумывай свойства.
-- Переводи характеристики в выгоду для покупателя (не «Li-ion 4000 mAh», а «до 2 дней без зарядки» — если это следует из данных).
-- Выбери 2–3 самых «продающих» пункта из specs/reviews/pros.
-- suggestedHooks — подсказка приоритетов, можешь переформулировать.
-- scenes: ровно 5 сцен на 15 сек: hook (0–2), bullet1 (2–5), bullet2 (5–8), review или факт (8–12), price+cta (12–15).
-- reviewQuote: короткая цитата из отзыва (до 70 символов), если есть отзывы; иначе omit.
-- headline: до 40 символов, CAPS допустимы.
-- bullets: 2–3 коротких выгоды.
+- ТОЛЬКО факты из productIntel и productData. Не выдумывай.
+- templateId: "viral_v1"
+- musicMood: energetic | trust | premium (по типу ролика)
+- musicTrackId: upbeat_drive | steady_groove | smooth_pulse
+- scenes: ровно 4, imageIndex 0–3 (разные фото товара)
+- style: hook | pain | proof | cta
+- headline/subheadline/bullets/reviewQuote — для UI, согласуй с сценами
 
-Верни ТОЛЬКО валидный JSON без markdown.`;
+Верни ТОЛЬКО валидный JSON.`;
 
   const user = JSON.stringify({
     productData,
+    productIntel: intel,
     suggestedHooks,
     price: priceStr,
     reelType: input.reelType,
     userHighlights: input.highlights,
-    customHighlight: input.customHighlight,
     ctaType: input.ctaType,
-    ctaValue: input.ctaValue,
-    tier: input.tier ?? "basic",
+    ctaText: CTA_MAP[input.ctaType],
     schema: {
       headline: "string",
       subheadline: "string",
       priceLabel: "string optional",
       ctaText: "string",
-      bullets: "string[] optional",
+      bullets: "string[]",
       reviewQuote: "string optional",
-      templateId: "promo | features",
+      templateId: "viral_v1",
+      musicMood: "energetic|trust|premium",
+      musicTrackId: "string",
       scenes: [
         {
           startSec: 0,
-          endSec: 2,
+          endSec: 3.75,
           text: "",
-          style: "headline|subheadline|bullet|review|cta",
+          style: "hook",
+          imageIndex: 0,
         },
       ],
     },
@@ -198,11 +211,37 @@ export async function generateReelScript(
     });
 
     const content = completion.choices[0]?.message?.content;
-    if (!content) return buildMockScript(input);
+    if (!content) return buildViralMockScript(input, intel);
 
     const parsed = JSON.parse(content);
-    return reelScriptSchema.parse(parsed);
+    const script = reelScriptSchema.parse({
+      ...parsed,
+      templateId: "viral_v1",
+    });
+    return normalizeViralScenes(script);
   } catch {
-    return buildMockScript(input);
+    return buildViralMockScript(input, intel);
   }
+}
+
+function normalizeViralScenes(script: ReelScript): ReelScript {
+  const defaults = [
+    { startSec: 0, endSec: 3.75, style: "hook" as const, imageIndex: 0 },
+    { startSec: 3.75, endSec: 7.5, style: "pain" as const, imageIndex: 1 },
+    { startSec: 7.5, endSec: 11.25, style: "proof" as const, imageIndex: 2 },
+    { startSec: 11.25, endSec: 15, style: "cta" as const, imageIndex: 3 },
+  ];
+
+  const scenes = defaults.map((d, i) => {
+    const s = script.scenes[i];
+    return {
+      startSec: d.startSec,
+      endSec: d.endSec,
+      text: s?.text ?? script.headline,
+      style: s?.style ?? d.style,
+      imageIndex: s?.imageIndex ?? d.imageIndex,
+    };
+  });
+
+  return { ...script, templateId: "viral_v1", scenes };
 }

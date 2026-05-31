@@ -6,6 +6,9 @@ const SCENE_STYLE_LABEL: Record<string, string> = {
   bullet: "Преимущество",
   review: "Отзыв",
   cta: "Призыв",
+  hook: "Hook",
+  pain: "Боль",
+  proof: "Доказательство",
 };
 
 export function ScriptPanel({ script }: { script: ReelScript }) {
@@ -44,6 +47,12 @@ export function ScriptPanel({ script }: { script: ReelScript }) {
                 <li key={b}>{b}</li>
               ))}
             </ul>
+          </div>
+        )}
+        {script.musicMood && (
+          <div>
+            <p className="text-xs text-slate-500">Музыка</p>
+            <p className="text-slate-700 capitalize">{script.musicMood}</p>
           </div>
         )}
         <div>

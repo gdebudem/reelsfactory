@@ -27,6 +27,8 @@ export const JOB_STATUSES = [
   "draft",
   "paid",
   "queued",
+  "researching",
+  "scripting",
   "rendering",
   "ready",
   "failed",
@@ -70,6 +72,37 @@ export const productCardSchema = z.object({
 });
 
 export type ProductCard = z.infer<typeof productCardSchema>;
+
+export const externalSnippetSchema = z.object({
+  source: z.string(),
+  url: z.string().url(),
+  quote: z.string(),
+  sentiment: z.enum(["positive", "negative", "neutral"]).optional(),
+});
+
+export const marketplaceReviewSchema = z.object({
+  platform: z.string(),
+  rating: z.number().min(0).max(5).optional(),
+  quote: z.string(),
+});
+
+export const productIntelSchema = z.object({
+  productTitle: z.string(),
+  brand: z.string().optional(),
+  category: z.string().optional(),
+  specsFromPage: z.array(productSpecSchema).optional(),
+  reviewsFromPage: z.array(productReviewSchema).optional(),
+  externalSnippets: z.array(externalSnippetSchema).optional(),
+  marketplaceReviews: z.array(marketplaceReviewSchema).optional(),
+  consumerPainPoints: z.array(z.string()).optional(),
+  rankedSellingPoints: z.array(z.string()).optional(),
+  socialProof: z.string().optional(),
+  researchSources: z.array(z.string()).optional(),
+});
+
+export type ExternalSnippet = z.infer<typeof externalSnippetSchema>;
+export type MarketplaceReview = z.infer<typeof marketplaceReviewSchema>;
+export type ProductIntel = z.infer<typeof productIntelSchema>;
 
 export const reelTypeSchema = z.enum([
   "promo",
@@ -115,12 +148,27 @@ export const wizardFormSchema = z.object({
 
 export type WizardForm = z.infer<typeof wizardFormSchema>;
 
+export const sceneStyleSchema = z.enum([
+  "headline",
+  "subheadline",
+  "bullet",
+  "review",
+  "cta",
+  "hook",
+  "pain",
+  "proof",
+]);
+
 export const sceneSchema = z.object({
   startSec: z.number(),
   endSec: z.number(),
   text: z.string(),
-  style: z.enum(["headline", "subheadline", "bullet", "review", "cta"]).optional(),
+  style: sceneStyleSchema.optional(),
+  imageIndex: z.number().int().min(0).max(4).optional(),
+  emphasis: z.string().optional(),
 });
+
+export const musicMoodSchema = z.enum(["energetic", "trust", "premium"]);
 
 export const reelScriptSchema = z.object({
   headline: z.string(),
@@ -130,7 +178,11 @@ export const reelScriptSchema = z.object({
   bullets: z.array(z.string()).optional(),
   reviewQuote: z.string().optional(),
   scenes: z.array(sceneSchema),
-  templateId: z.enum(["promo", "features"]).default("promo"),
+  templateId: z
+    .enum(["promo", "features", "viral_v1"])
+    .default("viral_v1"),
+  musicTrackId: z.string().optional(),
+  musicMood: musicMoodSchema.optional(),
 });
 
 export type ReelScript = z.infer<typeof reelScriptSchema>;
@@ -156,3 +208,9 @@ export const PRICING = {
   basic: { amount: 99, label: "$0.99", display: "0,99 $" },
   premium: { amount: 199, label: "$1.99", display: "1,99 $" },
 } as const;
+
+export {
+  PIPELINE_VERSION,
+  isViralScript,
+  shouldRegenerateScript,
+} from "./pipeline";
