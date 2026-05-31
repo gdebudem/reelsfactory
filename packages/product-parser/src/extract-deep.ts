@@ -197,6 +197,10 @@ function extractTableSpecs($: CheerioRoot): ProductSpec[] {
     "#tab-specifications table tr",
     ".product-characteristics table tr",
     ".props_list tr",
+    ".product-item-detail-properties tr",
+    ".product-item-detail-tab-content table tr",
+    ".bx-catalog-tab-body table tr",
+    "div.props tr",
   ];
   for (const sel of selectors) {
     $(sel).each((_, row) => {

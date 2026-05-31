@@ -5,6 +5,7 @@ import {
   extractDeepFromJsonLd,
   type DeepProductFields,
 } from "./extract-deep";
+import { extractImagesFromHtml } from "./extract-images";
 
 const FETCH_TIMEOUT_MS = 15000;
 const USER_AGENT =
@@ -98,6 +99,11 @@ function extractOgMeta(html: string, sourceUrl: string): Partial<ProductCard> {
   const title =
     getMeta("og:title") ||
     getMeta("twitter:title") ||
+    $("h1").first().text().trim() ||
+    $(".product-item-detail-title, .product-title, [itemprop='name']")
+      .first()
+      .text()
+      .trim() ||
     $("title").first().text().trim();
   const image =
     getMeta("og:image") || getMeta("twitter:image");
@@ -111,7 +117,7 @@ function extractOgMeta(html: string, sourceUrl: string): Partial<ProductCard> {
 
   const { price, currency } = priceText
     ? parsePrice(priceText)
-    : { price: null, currency: "RUB" };
+    : { price: null, currency: "RUB" as const };
 
   const images: string[] = [];
   if (image) images.push(image.startsWith("http") ? image : new URL(image, sourceUrl).href);
@@ -121,7 +127,30 @@ function extractOgMeta(html: string, sourceUrl: string): Partial<ProductCard> {
     if (c && !images.includes(c)) images.push(c);
   });
 
-  return { title, price, currency, images, description };
+  const priceFromPage =
+    priceText ||
+    $(".product-item-detail-price, .price, [itemprop='price']").first().text();
+
+  const parsedPrice = priceFromPage
+    ? parsePrice(priceFromPage)
+    : { price: null, currency: "RUB" };
+
+  return {
+    title,
+    price: parsedPrice.price,
+    currency: parsedPrice.currency,
+    images,
+    description,
+  };
+}
+
+function cleanProductTitle(raw: string): string {
+  let title = raw.trim();
+  // "Товар - 160108" or "Товар - 160108 - ТД Рубин"
+  title = title.replace(/\s*-\s*\d{4,}\s*(?:-\s*.+)?$/i, "");
+  title = title.replace(/\s*\|\s*.+$/, "");
+  title = title.replace(/\s+-\s+ТД\s+Рубин.*/i, "");
+  return title.trim() || raw.trim();
 }
 
 export class ProductParseError extends Error {
@@ -187,9 +216,11 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
     );
   }
 
+  const htmlImages = extractImagesFromHtml(html, url);
   const images = [
     ...(jsonLd?.images ?? []),
     ...(og.images ?? []),
+    ...htmlImages,
   ].filter((img, idx, arr) => img && arr.indexOf(img) === idx);
 
   if (images.length === 0) {
@@ -205,7 +236,7 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
   }
 
   return {
-    title: title.trim(),
+    title: cleanProductTitle(title),
     price: jsonLd?.price ?? og.price ?? null,
     currency: jsonLd?.currency ?? og.currency ?? "RUB",
     images: images.slice(0, 5),

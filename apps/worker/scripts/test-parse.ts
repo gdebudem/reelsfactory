@@ -6,6 +6,9 @@ parseProductUrl(url)
   .then((p) => {
     console.log({
       title: p.title,
+      price: p.price,
+      images: p.images?.length ?? 0,
+      firstImage: p.images?.[0]?.slice(0, 80),
       brand: p.brand,
       specs: p.specs?.length ?? 0,
       reviews: p.reviews?.length ?? 0,
