@@ -1,4 +1,4 @@
-# Worker image for Railway — ffmpeg render + Playwright parser
+# Worker image for Railway — ffmpeg render (1 GB RAM, no Remotion/Playwright at startup)
 FROM node:20-bookworm
 
 WORKDIR /app
@@ -12,9 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libass9 \
   && rm -rf /var/lib/apt/lists/*
 
-ENV NODE_OPTIONS=--max-old-space-size=768
+ENV NODE_OPTIONS=--max-old-space-size=512
 ENV NPM_CONFIG_PRODUCTION=false
-ENV PLAYWRIGHT_PARSER=true
+ENV RENDER_ENGINE=ffmpeg
+ENV PLAYWRIGHT_PARSER=false
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 COPY package.json package-lock.json ./
 COPY apps/worker/package.json ./apps/worker/
@@ -33,7 +35,6 @@ COPY apps/worker ./apps/worker
 
 RUN npx prisma generate --schema=./prisma/schema.prisma \
   && test -x node_modules/.bin/tsx \
-  && npx playwright install chromium --with-deps \
   && chmod +x apps/worker/scripts/generate-music.sh \
   && apps/worker/scripts/generate-music.sh
 

@@ -18,7 +18,6 @@ import {
 } from "@reels-factory/product-parser";
 import { ensureMusicAssets } from "./ensureMusic.js";
 import { getRenderMode, renderReelToS3 } from "./render.js";
-import { ensureRemotionBrowser } from "./remotionBrowser.js";
 import { hasStorageConfigured } from "./storage.js";
 import { startPostgresQueueWorker } from "./postgres-queue.js";
 
@@ -53,10 +52,18 @@ function getRedisConnection() {
 
 if (!process.env.DATABASE_URL) {
   console.error(
-    "[worker] DATABASE_URL is not set. Add your Neon URL in Railway Variables and redeploy."
+    "[worker] FATAL: DATABASE_URL is not set. Add your Neon URL in Railway Variables and redeploy."
   );
   process.exit(1);
 }
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[worker] unhandledRejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[worker] uncaughtException:", err);
+  process.exit(1);
+});
 
 const QUEUE_NAME = "render-reel";
 
@@ -172,6 +179,7 @@ async function logWorkerReady() {
   }
   try {
     console.log("[worker] Render engine: remotion — ensuring Chrome…");
+    const { ensureRemotionBrowser } = await import("./remotionBrowser.js");
     await ensureRemotionBrowser();
     console.log("[worker] Browser ready");
   } catch (err) {
