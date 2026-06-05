@@ -4,7 +4,7 @@ import {
   type ProductIntel,
   type ReelScript,
 } from "@reels-factory/shared";
-import type { GenerateScriptInput } from "./index";
+import type { GenerateScriptInput } from "./types";
 import { pickReviewQuote, rankConsumerHooks } from "./product-hooks";
 
 const CTA_MAP = {

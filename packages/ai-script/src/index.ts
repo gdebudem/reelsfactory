@@ -14,6 +14,8 @@ import {
   pickReviewQuote,
   rankConsumerHooks,
 } from "./product-hooks";
+import { buildViralMockScript } from "./viral-script";
+import type { GenerateScriptInput } from "./types";
 
 type ReelType = z.infer<typeof reelTypeSchema>;
 type CtaType = z.infer<typeof ctaTypeSchema>;
@@ -28,6 +30,7 @@ export function getOpenAiModel() {
 
 export { buildProductContext, rankConsumerHooks, pickReviewQuote } from "./product-hooks";
 export { buildViralMockScript } from "./viral-script";
+export type { GenerateScriptInput } from "./types";
 
 const TONE_BY_TYPE: Record<ReelType, string> = {
   promo: "яркий, срочный, акцент на выгоде и цене",
@@ -36,17 +39,6 @@ const TONE_BY_TYPE: Record<ReelType, string> = {
   problem_solution: "эмпатия к проблеме, чёткое решение",
   seasonal: "сезонный, тематический, праздничный тон",
 };
-
-export interface GenerateScriptInput {
-  product: ProductCard;
-  productIntel?: ProductIntel;
-  reelType: ReelType;
-  highlights: string[];
-  customHighlight?: string;
-  ctaType: CtaType;
-  ctaValue?: string;
-  tier?: Tier;
-}
 
 function formatPrice(product: ProductCard): string {
   if (product.price == null) return "";
@@ -132,7 +124,6 @@ export function buildMockScript(input: GenerateScriptInput): ReelScript {
 export async function generateReelScript(
   input: GenerateScriptInput
 ): Promise<ReelScript> {
-  const { buildViralMockScript } = await import("./viral-script");
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return buildViralMockScript(input, input.productIntel);
