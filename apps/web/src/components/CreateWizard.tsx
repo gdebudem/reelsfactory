@@ -6,7 +6,6 @@ import {
   REEL_TYPES,
   HIGHLIGHT_CHIPS,
   CTA_TYPES,
-  PRICING,
   type ProductCard,
   type WizardForm,
 } from "@reels-factory/shared";
@@ -32,7 +31,6 @@ export function CreateWizard() {
   const [customHighlight, setCustomHighlight] = useState("");
   const [ctaType, setCtaType] = useState<WizardForm["ctaType"]>("website");
   const [ctaValue, setCtaValue] = useState("");
-  const [tier, setTier] = useState<"basic" | "premium">("basic");
 
   async function parseProduct() {
     setLoading(true);
@@ -79,7 +77,7 @@ export function CreateWizard() {
           customHighlight: customHighlight || undefined,
           ctaType,
           ctaValue: ctaValue || undefined,
-          tier,
+          tier: "basic",
         }),
       });
       const data = await res.json();
@@ -276,25 +274,6 @@ export function CreateWizard() {
               onChange={(e) => setCtaValue(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-4 py-3"
             />
-            <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-600">Тариф</p>
-              <div className="mt-2 flex gap-2">
-                {(["basic", "premium"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTier(t)}
-                    className={`flex-1 rounded-lg border py-2 text-sm font-medium ${
-                      tier === t
-                        ? "border-indigo-600 bg-indigo-50"
-                        : "border-slate-200"
-                    }`}
-                  >
-                    {PRICING[t].display}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
