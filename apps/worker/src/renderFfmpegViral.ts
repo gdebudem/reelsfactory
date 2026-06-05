@@ -74,10 +74,8 @@ export async function renderViralReelWithFfmpeg(
     }
 
     const filter = buildViralFilter(scenes, assPath);
-    const args = [
-      "-y",
-      ...imagePaths.flatMap((p) => ["-loop", "1", "-t", String(CLIP_SEC), "-i", p]),
-    ];
+    // No -loop: zoompan d=frames generates clip length from a single image frame
+    const args = ["-y", ...imagePaths.flatMap((p) => ["-i", p])];
 
     if (hasMusic) {
       args.push("-i", musicPath);
@@ -143,7 +141,7 @@ function buildViralFilter(
   for (let i = 0; i < 4; i++) {
     const pan = pans[i] ?? pans[0]!;
     lines.push(
-      `[${i}:v]scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2:color=0x0f172a,${pan}[v${i}]`
+      `[${i}:v]scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2:color=0x0f172a,format=yuv420p,${pan},format=yuv420p[v${i}]`
     );
   }
 
@@ -169,12 +167,42 @@ async function writeImageFile(src: string, dest: string): Promise<void> {
     const base64 = src.split(",")[1];
     if (!base64) throw new Error("Invalid data URL for product image");
     await writeFile(dest, Buffer.from(base64, "base64"));
+    await convertImageToJpeg(dest);
     return;
   }
 
   const res = await fetch(src, { signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new Error(`Image fetch failed: ${res.status}`);
-  await writeFile(dest, Buffer.from(await res.arrayBuffer()));
+  const buf = Buffer.from(await res.arrayBuffer());
+  await writeFile(dest, buf);
+  await convertImageToJpeg(dest);
+}
+
+/** Normalize PNG/WebP to JPEG — avoids png_pipe + rgba64be issues in ffmpeg. */
+async function convertImageToJpeg(imagePath: string): Promise<void> {
+  const jpegPath = `${imagePath}.tmp.jpg`;
+  try {
+    await runFfmpeg(
+      [
+        "-y",
+        "-i",
+        imagePath,
+        "-vf",
+        "scale=720:1280:force_original_aspect_ratio=decrease",
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        jpegPath,
+      ],
+      path.dirname(imagePath)
+    );
+    await copyFile(jpegPath, imagePath);
+  } catch {
+    /* keep original if conversion fails */
+  } finally {
+    await rm(jpegPath, { force: true }).catch(() => undefined);
+  }
 }
 
 function runFfmpeg(args: string[], cwd: string): Promise<void> {
