@@ -5,10 +5,8 @@ import { authOptions } from "@/lib/auth";
 import {
   envProblemResponse,
   hasDatabaseConfigured,
-  hasRedisConfigured,
 } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { enqueueStoryboardJob, getQueueMode } from "@/lib/queue";
 import { getStripePriceId, getTierAmount, stripe } from "@/lib/stripe";
 
 export type PipelineResult =
@@ -16,7 +14,7 @@ export type PipelineResult =
       ok: true;
       jobId: string;
       skipPayment: true;
-      status: "queued";
+      status: "paid";
     }
   | {
       ok: true;
@@ -146,38 +144,10 @@ export async function runReelPipeline(
     data: { status: "paid", tier: data.tier },
   });
 
-  if (!hasRedisConfigured() && getQueueMode() === "redis") {
-    const p = envProblemResponse("redis");
-    return { ok: false, status: p.status, body: p.body };
-  }
-
-  try {
-    await enqueueStoryboardJob(job.id);
-    await prisma.reelJob.update({
-      where: { id: job.id },
-      data: { status: "queued" },
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Ошибка очереди";
-    await prisma.reelJob.update({
-      where: { id: job.id },
-      data: { status: "failed", errorMessage: message },
-    });
-    return {
-      ok: false,
-      status: 500,
-      body: {
-        error: "Не удалось поставить задачу в очередь",
-        details: message,
-        jobId: job.id,
-      },
-    };
-  }
-
   return {
     ok: true,
     jobId: job.id,
     skipPayment: true,
-    status: "queued",
+    status: "paid",
   };
 }

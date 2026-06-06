@@ -89,7 +89,7 @@ export function CreateWizard() {
       }
 
       if (data.skipPayment) {
-        router.push(`/create/result/${data.jobId}?started=1`);
+        router.push(`/create/result/${data.jobId}`);
         return;
       }
       if (data.url) {

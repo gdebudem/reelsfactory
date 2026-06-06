@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhonePreview } from "./PhonePreview";
 import { ScriptPanel } from "./ScriptPanel";
@@ -19,27 +19,17 @@ type Job = {
   scriptJson: ReelScript | null;
 };
 
-const IN_PROGRESS = new Set([
-  "queued",
-  "researching",
-  "scripting",
-  "render_queued",
-  "rendering",
-]);
+const STORYBOARD_TRIGGER = new Set(["paid", "failed", "draft"]);
+const STORYBOARD_IN_PROGRESS = new Set(["researching", "scripting"]);
+const RENDER_IN_PROGRESS = new Set(["render_queued", "rendering"]);
 
-export function JobProgress({
-  jobId,
-  pipelineStarted = false,
-}: {
-  jobId: string;
-  pipelineStarted?: boolean;
-}) {
+export function JobProgress({ jobId }: { jobId: string }) {
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
-  const [starting, setStarting] = useState(false);
   const [approving, setApproving] = useState(false);
   const [renderStarted, setRenderStarted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const storyboardRequested = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -62,31 +52,24 @@ export function JobProgress({
   }, [jobId, renderStarted]);
 
   useEffect(() => {
-    if (starting || pipelineStarted) return;
+    if (storyboardRequested.current) return;
 
-    async function maybeStartStoryboard() {
+    async function triggerStoryboard() {
       const statusRes = await fetch(`/api/reels/jobs/${jobId}`);
       const statusData = await statusRes.json();
       const status = statusData.job?.status as string | undefined;
+      if (!status || !STORYBOARD_TRIGGER.has(status)) return;
 
-      if (
-        !status ||
-        IN_PROGRESS.has(status) ||
-        status === "storyboard_ready" ||
-        status === "ready" ||
-        status === "failed"
-      ) {
-        return;
-      }
+      storyboardRequested.current = true;
+      await fetch(`/api/reels/jobs/${jobId}/storyboard`, { method: "POST" });
 
-      if (status === "draft" || status === "paid") {
-        setStarting(true);
-        await fetch(`/api/reels/jobs/${jobId}/start`, { method: "POST" });
-      }
+      const refresh = await fetch(`/api/reels/jobs/${jobId}`);
+      const refreshData = await refresh.json();
+      if (refreshData.job) setJob(refreshData.job);
     }
 
-    void maybeStartStoryboard();
-  }, [jobId, starting, pipelineStarted]);
+    void triggerStoryboard();
+  }, [jobId]);
 
   async function approveAndRender() {
     setApproving(true);
@@ -154,11 +137,11 @@ export function JobProgress({
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-violet-900">
-              Раскадровка готова
+              Раскадровка готова — проверьте сценарий
             </h2>
             <p className="mt-2 text-slate-600">
-              Проверьте сцены и текст. Если всё устраивает — подтвердите и мы
-              сгенерируем видео с надписями и музыкой.
+              Ниже 4 сцены с текстом для ролика. Видео начнёт генерироваться
+              только после вашего подтверждения.
             </p>
           </div>
 
@@ -258,20 +241,22 @@ export function JobProgress({
     );
   }
 
+  const isRendering = RENDER_IN_PROGRESS.has(job.status);
+  const isStoryboarding =
+    STORYBOARD_IN_PROGRESS.has(job.status) || job.status === "paid";
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
       <div className="space-y-6">
         <div className="py-6 lg:py-0">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600 lg:mx-0" />
           <h2 className="mt-6 text-2xl font-bold">
-            {job.status === "render_queued" || job.status === "rendering"
-              ? "Создаём видео…"
-              : "Готовим раскадровку…"}
+            {isRendering ? "Создаём видео…" : "Готовим раскадровку…"}
           </h2>
           <p className="mt-2 text-slate-600">
-            {job.status === "render_queued" || job.status === "rendering"
+            {isRendering
               ? "Обычно ~1–2 минуты"
-              : "ИИ изучает товар и пишет сценарий"}
+              : "ИИ изучает товар и пишет сценарий — видео пока не создаётся"}
           </p>
           <p className="mt-4 text-sm font-medium text-indigo-700">
             {jobStatusLabel(job.status)}
@@ -279,17 +264,17 @@ export function JobProgress({
         </div>
         {intel ? (
           <IntelPanel intel={intel} />
-        ) : job.status === "researching" || job.status === "queued" ? (
+        ) : isStoryboarding ? (
           <p className="text-sm text-slate-500">
             ИИ ищет отзывы и упоминания товара в интернете…
           </p>
         ) : null}
-        {script ? (
+        {script && product ? (
           <>
-            <StoryboardPanel product={product!} script={script} />
+            <StoryboardPanel product={product} script={script} />
             <ScriptPanel script={script} />
           </>
-        ) : job.status === "scripting" || job.status === "researching" ? (
+        ) : isStoryboarding ? (
           <p className="text-sm text-slate-500">Пишем сценарий по сценам…</p>
         ) : null}
       </div>

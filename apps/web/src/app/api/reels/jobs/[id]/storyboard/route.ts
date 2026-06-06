@@ -3,13 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { envProblemResponse, hasDatabaseConfigured } from "@/lib/env";
 import { runStoryboard } from "@/lib/pipeline/runStoryboard";
 
-const STORYBOARD_STARTABLE = new Set(["draft", "paid", "failed"]);
-const STORYBOARD_DONE = new Set([
-  "storyboard_ready",
-  "render_queued",
-  "rendering",
-  "ready",
-]);
+export const maxDuration = 60;
+
+const STORYBOARD_DONE = new Set(["storyboard_ready", "render_queued", "rendering", "ready"]);
 const STORYBOARD_BUSY = new Set(["researching", "scripting"]);
 
 export async function POST(
@@ -27,41 +23,32 @@ export async function POST(
     return NextResponse.json({ error: "Не найдено" }, { status: 404 });
   }
 
-  if (STORYBOARD_BUSY.has(job.status) || STORYBOARD_DONE.has(job.status)) {
+  if (STORYBOARD_DONE.has(job.status)) {
     return NextResponse.json({ ok: true, status: job.status });
   }
 
-  const skipPayment = process.env.SKIP_PAYMENT === "true";
-
-  if (!skipPayment && job.status !== "paid" && job.status !== "failed") {
-    return NextResponse.json(
-      { error: "Сначала оплатите ролик" },
-      { status: 402 }
-    );
+  if (STORYBOARD_BUSY.has(job.status)) {
+    return NextResponse.json({ ok: true, status: job.status });
   }
 
-  if (skipPayment && job.status === "draft") {
-    await prisma.reelJob.update({
-      where: { id },
-      data: { status: "paid" },
-    });
-  }
-
-  if (!STORYBOARD_STARTABLE.has(job.status) && job.status !== "draft") {
+  if (job.status !== "paid" && job.status !== "failed") {
     return NextResponse.json(
-      { error: "Задача не может быть запущена" },
+      { error: "Раскадровку можно запустить только после оплаты", status: job.status },
       { status: 400 }
     );
   }
 
   const claimed = await prisma.reelJob.updateMany({
-    where: { id, status: { in: ["paid", "failed", "draft"] } },
+    where: { id, status: { in: ["paid", "failed"] } },
     data: { status: "researching", errorMessage: null },
   });
 
   if (claimed.count === 0) {
     const current = await prisma.reelJob.findUnique({ where: { id } });
-    return NextResponse.json({ ok: true, status: current?.status ?? job.status });
+    return NextResponse.json({
+      ok: true,
+      status: current?.status ?? job.status,
+    });
   }
 
   try {
@@ -73,9 +60,6 @@ export async function POST(
       where: { id },
       data: { status: "failed", errorMessage: message },
     });
-    return NextResponse.json(
-      { error: "Не удалось создать раскадровку", details: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

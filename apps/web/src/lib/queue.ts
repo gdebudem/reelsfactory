@@ -84,11 +84,6 @@ async function enqueuePhase(jobId: string, phase: JobPhase): Promise<void> {
   }
 }
 
-/** Queue storyboard generation (research + script). Postgres: caller sets status=queued. */
-export async function enqueueStoryboardJob(jobId: string): Promise<void> {
-  await enqueuePhase(jobId, "storyboard");
-}
-
 /** Queue video render after user approves storyboard. Postgres: caller sets status=render_queued. */
 export async function enqueueRenderJob(jobId: string): Promise<void> {
   await enqueuePhase(jobId, "render");
