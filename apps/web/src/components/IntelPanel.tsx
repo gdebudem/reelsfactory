@@ -58,9 +58,11 @@ export function IntelPanel({ intel }: { intel: ProductIntel }) {
 const STATUS_LABELS: Record<string, string> = {
   draft: "Черновик",
   paid: "Оплачено",
-  queued: "В очереди",
+  queued: "В очереди на раскадровку",
   researching: "ИИ изучает товар…",
-  scripting: "Пишем сценарий…",
+  scripting: "Пишем раскадровку…",
+  storyboard_ready: "Раскадровка готова",
+  render_queued: "В очереди на рендер",
   rendering: "Создаём видео…",
   ready: "Готово",
   failed: "Ошибка",

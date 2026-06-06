@@ -8,7 +8,7 @@ import {
   hasRedisConfigured,
 } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { enqueueRenderJob, getQueueMode } from "@/lib/queue";
+import { enqueueStoryboardJob, getQueueMode } from "@/lib/queue";
 import { getStripePriceId, getTierAmount, stripe } from "@/lib/stripe";
 
 export type PipelineResult =
@@ -67,7 +67,7 @@ export async function runReelPipeline(
     },
   });
 
-  // Script + research run on worker (researching → scripting → rendering)
+  // Storyboard (research + script) runs on worker; render waits for user approval
 
   if (process.env.SKIP_PAYMENT !== "true") {
     if (!stripe) {
@@ -152,7 +152,7 @@ export async function runReelPipeline(
   }
 
   try {
-    await enqueueRenderJob(job.id);
+    await enqueueStoryboardJob(job.id);
     await prisma.reelJob.update({
       where: { id: job.id },
       data: { status: "queued" },

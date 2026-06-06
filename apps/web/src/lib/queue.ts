@@ -4,11 +4,11 @@ import Redis, { type RedisOptions } from "ioredis";
 const QUEUE_NAME = "render-reel";
 
 export type QueueMode = "postgres" | "redis";
+export type JobPhase = "storyboard" | "render";
 
 export function getQueueMode(): QueueMode {
   const mode = process.env.QUEUE_MODE?.trim().toLowerCase();
   if (mode === "redis") return "redis";
-  // Default: Postgres (Neon) — no Upstash command quota burn
   return "postgres";
 }
 
@@ -40,10 +40,11 @@ function getRedisOptions(): RedisOptions {
   };
 }
 
-async function enqueueRedis(jobId: string): Promise<void> {
+async function enqueueRedis(jobId: string, phase: JobPhase): Promise<void> {
   const queue = new Queue(QUEUE_NAME, { connection: getRedisOptions() });
+  const bullJobId = phase === "render" ? `${jobId}:render` : `${jobId}:storyboard`;
   try {
-    const existing = await queue.getJob(jobId);
+    const existing = await queue.getJob(bullJobId);
     if (existing) {
       const state = await existing.getState();
       if (state === "failed" || state === "completed") {
@@ -51,10 +52,10 @@ async function enqueueRedis(jobId: string): Promise<void> {
       }
     }
     await queue.add(
-      "render",
-      { jobId },
+      phase,
+      { jobId, phase },
       {
-        jobId,
+        jobId: bullJobId,
         removeOnComplete: 100,
         removeOnFail: 50,
         attempts: 2,
@@ -66,16 +67,12 @@ async function enqueueRedis(jobId: string): Promise<void> {
   }
 }
 
-/**
- * Queue a render job. Postgres mode: no-op (caller sets status=queued in DB).
- * Redis mode: BullMQ add (optional, for high-throughput setups).
- */
-export async function enqueueRenderJob(jobId: string): Promise<void> {
+async function enqueuePhase(jobId: string, phase: JobPhase): Promise<void> {
   if (getQueueMode() !== "redis" || !process.env.REDIS_URL) {
     return;
   }
   try {
-    await enqueueRedis(jobId);
+    await enqueueRedis(jobId, phase);
   } catch (err) {
     if (isRedisQuotaError(err)) {
       console.warn(
@@ -85,6 +82,16 @@ export async function enqueueRenderJob(jobId: string): Promise<void> {
     }
     throw err;
   }
+}
+
+/** Queue storyboard generation (research + script). Postgres: caller sets status=queued. */
+export async function enqueueStoryboardJob(jobId: string): Promise<void> {
+  await enqueuePhase(jobId, "storyboard");
+}
+
+/** Queue video render after user approves storyboard. Postgres: caller sets status=render_queued. */
+export async function enqueueRenderJob(jobId: string): Promise<void> {
+  await enqueuePhase(jobId, "render");
 }
 
 export async function pingRedis(): Promise<boolean> {

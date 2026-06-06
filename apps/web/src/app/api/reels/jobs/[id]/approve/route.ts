@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { enqueueStoryboardJob, getQueueMode } from "@/lib/queue";
+import { enqueueRenderJob, getQueueMode } from "@/lib/queue";
 import { prisma } from "@/lib/prisma";
 import {
   envProblemResponse,
   hasDatabaseConfigured,
   hasRedisConfigured,
 } from "@/lib/env";
-
-const STORYBOARD_STARTABLE = new Set(["draft", "paid", "failed"]);
 
 export async function POST(
   _req: Request,
@@ -28,56 +26,39 @@ export async function POST(
     return NextResponse.json({ error: "Не найдено" }, { status: 404 });
   }
 
-  if (
-    job.status === "queued" ||
-    job.status === "researching" ||
-    job.status === "scripting" ||
-    job.status === "storyboard_ready" ||
-    job.status === "render_queued" ||
-    job.status === "rendering" ||
-    job.status === "ready"
-  ) {
+  if (job.status === "render_queued" || job.status === "rendering") {
     return NextResponse.json({ ok: true, status: job.status });
   }
 
-  const skipPayment = process.env.SKIP_PAYMENT === "true";
-
-  if (!skipPayment && job.status !== "paid" && job.status !== "failed") {
-    return NextResponse.json(
-      { error: "Сначала оплатите ролик" },
-      { status: 402 }
-    );
+  if (job.status === "ready") {
+    return NextResponse.json({ ok: true, status: "ready" });
   }
 
-  if (!STORYBOARD_STARTABLE.has(job.status)) {
+  if (job.status !== "storyboard_ready") {
     return NextResponse.json(
-      { error: "Задача не может быть запущена" },
+      {
+        error: "Раскадровка ещё не готова",
+        status: job.status,
+      },
       { status: 400 }
     );
   }
 
-  if (skipPayment && job.status === "draft") {
-    await prisma.reelJob.update({
-      where: { id },
-      data: { status: "paid" },
-    });
-  }
-
-  if (job.status === "failed") {
-    await prisma.reelJob.update({
-      where: { id },
-      data: { status: "paid", errorMessage: null },
-    });
+  if (!job.scriptJson) {
+    return NextResponse.json(
+      { error: "Сценарий отсутствует — перегенерируйте раскадровку" },
+      { status: 400 }
+    );
   }
 
   try {
-    await enqueueStoryboardJob(id);
+    await enqueueRenderJob(id);
     await prisma.reelJob.update({
       where: { id },
-      data: { status: "queued" },
+      data: { status: "render_queued" },
     });
 
-    return NextResponse.json({ ok: true, status: "queued" });
+    return NextResponse.json({ ok: true, status: "render_queued" });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка очереди";
     await prisma.reelJob.update({
@@ -85,7 +66,7 @@ export async function POST(
       data: { status: "failed", errorMessage: message },
     });
     return NextResponse.json(
-      { error: "Не удалось поставить задачу в очередь", details: message },
+      { error: "Не удалось запустить рендер", details: message },
       { status: 500 }
     );
   }

@@ -307,7 +307,7 @@ export function CreateWizard() {
               onClick={submit}
               className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 font-medium text-white disabled:opacity-50"
             >
-              {loading ? "Сценарий и заказ…" : "Создать видео"}
+              {loading ? "Готовим раскадровку…" : "Сгенерировать раскадровку"}
             </button>
           )}
         </div>

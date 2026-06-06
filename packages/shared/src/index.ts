@@ -29,6 +29,8 @@ export const JOB_STATUSES = [
   "queued",
   "researching",
   "scripting",
+  "storyboard_ready",
+  "render_queued",
   "rendering",
   "ready",
   "failed",

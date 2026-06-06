@@ -19,7 +19,10 @@ import {
 import { ensureMusicAssets } from "./ensureMusic.js";
 import { getRenderMode, renderReelToS3 } from "./render.js";
 import { hasStorageConfigured } from "./storage.js";
-import { startPostgresQueueWorker } from "./postgres-queue.js";
+import {
+  startPostgresQueueWorker,
+  type JobPhase,
+} from "./postgres-queue.js";
 
 const prisma = new PrismaClient();
 
@@ -74,10 +77,7 @@ async function setJobStatus(jobId: string, status: string) {
   });
 }
 
-async function processJob(jobId: string) {
-  const job = await prisma.reelJob.findUnique({ where: { id: jobId } });
-  if (!job) throw new Error(`Job ${jobId} not found`);
-
+async function refreshProduct(jobId: string, job: { productUrl: string; productJson: unknown }) {
   let product = job.productJson as ProductCard;
 
   if (isProductParsePoor(product)) {
@@ -93,11 +93,18 @@ async function processJob(jobId: string) {
     }
   }
 
-  // Always refresh intel for v2 pipeline (old jobs had none)
+  return product;
+}
+
+async function processStoryboard(jobId: string) {
+  const job = await prisma.reelJob.findUnique({ where: { id: jobId } });
+  if (!job) throw new Error(`Job ${jobId} not found`);
+
+  const product = await refreshProduct(jobId, job);
+
   let intel = job.productIntelJson as ProductIntel | null;
   const needsIntel =
-    !intel ||
-    (intel.rankedSellingPoints?.length ?? 0) === 0;
+    !intel || (intel.rankedSellingPoints?.length ?? 0) === 0;
 
   if (needsIntel) {
     await setJobStatus(jobId, "researching");
@@ -144,6 +151,21 @@ async function processJob(jobId: string) {
     throw new Error("Script generation failed");
   }
 
+  await setJobStatus(jobId, "storyboard_ready");
+  console.log(`[worker] Storyboard ready for ${jobId} — awaiting user approval`);
+}
+
+async function processRender(jobId: string) {
+  const job = await prisma.reelJob.findUnique({ where: { id: jobId } });
+  if (!job) throw new Error(`Job ${jobId} not found`);
+
+  const product = await refreshProduct(jobId, job);
+  const script = job.scriptJson as ReelScript | null;
+
+  if (!script) {
+    throw new Error("Cannot render without approved storyboard script");
+  }
+
   await setJobStatus(jobId, "rendering");
   const videoUrl = await renderReelToS3(jobId, product, script);
 
@@ -151,6 +173,14 @@ async function processJob(jobId: string) {
     where: { id: jobId },
     data: { status: "ready", videoUrl },
   });
+}
+
+async function processJob(jobId: string, phase: JobPhase) {
+  if (phase === "storyboard") {
+    await processStoryboard(jobId);
+  } else {
+    await processRender(jobId);
+  }
 }
 
 async function logWorkerReady() {
@@ -196,10 +226,11 @@ if (queueMode === "redis" && process.env.REDIS_URL) {
     QUEUE_NAME,
     async (job) => {
       const jobId = job.data.jobId as string;
-      console.log(`[worker] Processing reel job ${jobId}`);
+      const phase = (job.data.phase as JobPhase) ?? "storyboard";
+      console.log(`[worker] Processing ${phase} for reel job ${jobId}`);
       try {
-        await processJob(jobId);
-        console.log(`[worker] Done ${jobId}`);
+        await processJob(jobId, phase);
+        console.log(`[worker] Done ${phase} ${jobId}`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[worker] Failed ${jobId}:`, message);
