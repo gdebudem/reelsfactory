@@ -1,6 +1,12 @@
 import { getServerSession } from "next-auth";
 import type Stripe from "stripe";
-import { createReelJobSchema } from "@reels-factory/shared";
+import {
+  appendPipelineLog,
+  appendServiceLog,
+  createInitialProgress,
+  createReelJobSchema,
+  mergeWizardLogs,
+} from "@reels-factory/shared";
 import { authOptions } from "@/lib/auth";
 import {
   envProblemResponse,
@@ -50,6 +56,22 @@ export async function runReelPipeline(
 
   const session = await getServerSession(authOptions);
 
+  let progressJson = createInitialProgress();
+  if (data.wizardLogs?.length) {
+    progressJson = mergeWizardLogs(progressJson, data.wizardLogs);
+  }
+  progressJson = appendPipelineLog(
+    progressJson,
+    `создан job · тип ролика: ${data.reelType}`
+  );
+  if (session?.user?.email) {
+    progressJson = appendServiceLog(progressJson, {
+      service: "пользователь",
+      account: session.user.email,
+      runtime: "Vercel",
+    });
+  }
+
   const job = await prisma.reelJob.create({
     data: {
       userId: session?.user?.id,
@@ -62,6 +84,7 @@ export async function runReelPipeline(
       ctaValue: data.ctaValue,
       tier: data.tier,
       status: "draft",
+      progressJson,
     },
   });
 
@@ -118,9 +141,13 @@ export async function runReelPipeline(
       },
     });
 
+    const checkoutProgress = appendPipelineLog(
+      progressJson,
+      "переход к оплате Stripe"
+    );
     await prisma.reelJob.update({
       where: { id: job.id },
-      data: { tier: data.tier },
+      data: { tier: data.tier, progressJson: checkoutProgress },
     });
 
     if (!checkoutSession.url) {
@@ -139,9 +166,13 @@ export async function runReelPipeline(
     };
   }
 
+  const paidProgress = appendPipelineLog(
+    progressJson,
+    "оплата пропущена (SKIP_PAYMENT) · запускаем генерацию"
+  );
   await prisma.reelJob.update({
     where: { id: job.id },
-    data: { status: "paid", tier: data.tier },
+    data: { status: "paid", tier: data.tier, progressJson: paidProgress },
   });
 
   return {

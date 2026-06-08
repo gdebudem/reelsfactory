@@ -10,7 +10,11 @@ import { ensureMusicAssets } from "./ensureMusic.js";
 import { getRenderMode, renderReelToS3 } from "./render.js";
 import { hasStorageConfigured } from "./storage.js";
 import { processGenerateSceneImages } from "./generateSceneImages.js";
-import { touchJobProgress } from "./jobProgress.js";
+import {
+  appendJobLog,
+  ensureWorkerServiceDiagnostics,
+  touchJobProgress,
+} from "./jobProgress.js";
 import { startPostgresQueueWorker } from "./postgres-queue.js";
 
 const prisma = new PrismaClient();
@@ -97,10 +101,25 @@ async function processRender(jobId: string) {
     data: { status: "rendering" },
   });
 
+  await ensureWorkerServiceDiagnostics(prisma, jobId);
   await touchJobProgress(prisma, jobId, "start", "assemble_video");
+
+  const musicTrack = script.musicTrackId ?? script.musicMood ?? "steady_groove";
+  await appendJobLog(
+    prisma,
+    jobId,
+    `ffmpeg · музыка ${musicTrack} · склейка 4 сцен`
+  );
 
   const sceneImages = job.sceneImagesJson as SceneImage[] | null;
   const videoUrl = await renderReelToS3(jobId, product, script, sceneImages);
+  if (videoUrl) {
+    await appendJobLog(
+      prisma,
+      jobId,
+      `видео загружено · ${videoUrl.slice(0, 80)}`
+    );
+  }
   await touchJobProgress(prisma, jobId, "complete", "assemble_video");
   await prisma.reelJob.update({
     where: { id: jobId },

@@ -1,98 +1,35 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { GeneratedScenesPanel } from "./GeneratedScenesPanel";
 import { PipelineLog } from "./PipelineLog";
 import { isDemoVideoUrl } from "@/lib/video";
+import { useJobProgressPoll } from "@/hooks/useJobProgressPoll";
 import {
   getActivePipelineLogMessage,
   isPreviewReadyStatus,
-  type PipelineProgress,
-  type ProductCard,
-  type SceneImage,
 } from "@reels-factory/shared";
 
-type Job = {
-  id: string;
-  status: string;
-  videoUrl: string | null;
-  errorMessage: string | null;
-  productJson: ProductCard;
-  sceneImagesJson: SceneImage[] | null;
-  progressJson: PipelineProgress | null;
-};
-
 const STORYBOARD_TRIGGER = new Set(["paid", "failed", "draft"]);
-const STORYBOARD_IN_PROGRESS = new Set([
-  "paid",
-  "queued",
-  "researching",
-  "scripting",
-  "generating_images",
-  "image_generating",
-]);
-const RENDER_IN_PROGRESS = new Set(["render_queued", "rendering"]);
-const POLL_MS_ACTIVE = 1500;
-const POLL_MS_IDLE = 3000;
-
-function shouldKeepPolling(status: string, renderStarted: boolean): boolean {
-  if (status === "ready" || status === "failed") return false;
-  if (isPreviewReadyStatus(status) && !renderStarted) return false;
-  return true;
-}
-
-function pollInterval(status: string): number {
-  if (
-    STORYBOARD_IN_PROGRESS.has(status) ||
-    RENDER_IN_PROGRESS.has(status)
-  ) {
-    return POLL_MS_ACTIVE;
-  }
-  return POLL_MS_IDLE;
-}
 
 export function JobProgress({ jobId }: { jobId: string }) {
   const router = useRouter();
-  const [job, setJob] = useState<Job | null>(null);
+  const searchParams = useSearchParams();
   const [approving, setApproving] = useState(false);
   const [renderStarted, setRenderStarted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const storyboardRequested = useRef(false);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paidMarked = useRef(false);
+
+  const { job, loading } = useJobProgressPoll(jobId, { renderStarted });
 
   useEffect(() => {
-    let active = true;
-
-    async function poll() {
-      try {
-        const res = await fetch(`/api/reels/jobs/${jobId}`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
-        if (!active) return;
-
-        if (data.job) {
-          setJob(data.job);
-        }
-
-        const status = (data.job?.status as string) ?? "";
-        if (!shouldKeepPolling(status, renderStarted)) return;
-
-        pollTimerRef.current = setTimeout(poll, pollInterval(status));
-      } catch {
-        if (!active) return;
-        pollTimerRef.current = setTimeout(poll, POLL_MS_IDLE);
-      }
-    }
-
-    poll();
-
-    return () => {
-      active = false;
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-    };
-  }, [jobId, renderStarted]);
+    if (paidMarked.current) return;
+    if (searchParams.get("paid") !== "1") return;
+    paidMarked.current = true;
+    void fetch(`/api/reels/jobs/${jobId}/mark-paid`, { method: "POST" });
+  }, [jobId, searchParams]);
 
   useEffect(() => {
     if (storyboardRequested.current) return;
@@ -107,12 +44,6 @@ export function JobProgress({ jobId }: { jobId: string }) {
 
       storyboardRequested.current = true;
       await fetch(`/api/reels/jobs/${jobId}/storyboard`, { method: "POST" });
-
-      const refresh = await fetch(`/api/reels/jobs/${jobId}`, {
-        cache: "no-store",
-      });
-      const refreshData = await refresh.json();
-      if (refreshData.job) setJob(refreshData.job);
     }
 
     void triggerStoryboard();
@@ -130,9 +61,6 @@ export function JobProgress({ jobId }: { jobId: string }) {
         throw new Error(data.error ?? "Не удалось запустить рендер");
       }
       setRenderStarted(true);
-      setJob((prev) =>
-        prev ? { ...prev, status: "render_queued" } : prev
-      );
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Ошибка");
     } finally {
@@ -140,8 +68,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
     }
   }
 
-  const product = job?.productJson;
-  const productLabel = product?.title?.trim();
+  const productLabel = job?.productJson?.title?.trim();
 
   const logPanel = (
     <PipelineLog
@@ -152,10 +79,11 @@ export function JobProgress({ jobId }: { jobId: string }) {
           ? getActivePipelineLogMessage(job.progressJson, job.status)
           : null
       }
+      usage={job?.progressJson?.usage}
     />
   );
 
-  if (!job) {
+  if (loading && !job) {
     return (
       <div className="grid gap-10 lg:grid-cols-2">
         <div className="py-20 text-center">
@@ -163,6 +91,15 @@ export function JobProgress({ jobId }: { jobId: string }) {
           <p className="mt-4 text-slate-600">Загрузка…</p>
         </div>
         <PipelineLog productLabel={undefined} entries={[]} />
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="grid gap-10 lg:grid-cols-2">
+        <p className="text-slate-600">Задача не найдена</p>
+        {logPanel}
       </div>
     );
   }

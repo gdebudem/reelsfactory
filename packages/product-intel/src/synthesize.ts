@@ -6,6 +6,8 @@ import {
 } from "@reels-factory/shared";
 import OpenAI from "openai";
 import type { TavilyResult } from "./tavily";
+import type { ResearchProgressReporter } from "./progress";
+import { noopReporter } from "./progress";
 
 function buildIntelFromProductOnly(
   product: ProductCard,
@@ -48,7 +50,8 @@ function buildIntelFromProductOnly(
 export async function synthesizeProductIntel(
   product: ProductCard,
   searchResults: TavilyResult[],
-  marketplaceListings: MarketplaceListing[] = []
+  marketplaceListings: MarketplaceListing[] = [],
+  reporter: ResearchProgressReporter = noopReporter
 ): Promise<ProductIntel> {
   if (!searchResults.length) {
     return buildIntelFromProductOnly(product, marketplaceListings);
@@ -97,6 +100,17 @@ export async function synthesizeProductIntel(
       response_format: { type: "json_object" },
       temperature: 0.3,
     });
+
+    const usage = completion.usage;
+    if (usage) {
+      await reporter.logUsage({
+        label: "синтез intel",
+        model,
+        promptTokens: usage.prompt_tokens ?? 0,
+        completionTokens: usage.completion_tokens ?? 0,
+        totalTokens: usage.total_tokens ?? 0,
+      });
+    }
 
     const content = completion.choices[0]?.message?.content;
     if (!content) return buildIntelFromProductOnly(product, marketplaceListings);

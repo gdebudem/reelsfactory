@@ -3,7 +3,13 @@ import {
   createInitialProgress,
   markPipelineStep,
   pipelineProgressSchema,
+  recordOpenAiChatUsage,
+  recordOpenAiImageUsage,
+  recordTavilySearch,
   setPipelineActiveStep,
+  type OpenAiChatUsageEntry,
+  type OpenAiImageUsageEntry,
+  type PipelineLogKind,
   type PipelineProgress,
   type PipelineStepId,
 } from "@reels-factory/shared";
@@ -29,9 +35,17 @@ async function saveProgress(
   });
 }
 
+export interface JobProgressReporter extends ResearchProgressReporter {
+  logImageUsage: (
+    entry: Omit<OpenAiImageUsageEntry, "at">
+  ) => Promise<void>;
+  save: (progress: PipelineProgress) => Promise<void>;
+  load: () => Promise<PipelineProgress>;
+}
+
 export function createJobProgressReporter(
   jobId: string
-): ResearchProgressReporter {
+): JobProgressReporter {
   return {
     async start(stepId: PipelineStepId) {
       const progress = await loadProgress(jobId);
@@ -41,9 +55,28 @@ export function createJobProgressReporter(
       const progress = await loadProgress(jobId);
       await saveProgress(jobId, markPipelineStep(progress, stepId));
     },
-    async log(text: string) {
+    async log(text: string, kind?: PipelineLogKind) {
       const progress = await loadProgress(jobId);
-      await saveProgress(jobId, appendPipelineLog(progress, text));
+      await saveProgress(jobId, appendPipelineLog(progress, text, kind));
+    },
+    async logUsage(entry: Omit<OpenAiChatUsageEntry, "at">) {
+      const progress = await loadProgress(jobId);
+      await saveProgress(jobId, recordOpenAiChatUsage(progress, entry));
+    },
+    async logImageUsage(entry: Omit<OpenAiImageUsageEntry, "at">) {
+      const progress = await loadProgress(jobId);
+      await saveProgress(jobId, recordOpenAiImageUsage(progress, entry));
+    },
+    async logTavilySearch(query?: string) {
+      const progress = await loadProgress(jobId);
+      await saveProgress(jobId, recordTavilySearch(progress, query));
+    },
+    async save(progress: PipelineProgress) {
+      await saveProgress(jobId, progress);
+    },
+    async load() {
+      return loadProgress(jobId);
     },
   };
 }
+

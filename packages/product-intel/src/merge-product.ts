@@ -156,6 +156,10 @@ export async function fetchMarketplaceProducts(
   const merged = mergeProductCards(product, parsedCards);
   await reporter.complete("read_reviews");
 
+  await reporter.log(
+    `спарсено ${parsedCards.length}/${urls.length} страниц · ${merged.images.length} фото · ${merged.reviews?.length ?? 0} отзывов`
+  );
+
   console.log(
     `[product-intel] Merged product: images=${merged.images.length}, specs=${merged.specs?.length ?? 0}, reviews=${merged.reviews?.length ?? 0}, parsed=${parsedCards.length}/${urls.length}`
   );

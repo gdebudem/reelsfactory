@@ -11,6 +11,7 @@ import {
   type WizardForm,
 } from "@reels-factory/shared";
 import { PipelineLog } from "./PipelineLog";
+import { useJobProgressPoll } from "@/hooks/useJobProgressPoll";
 
 const STEPS = [
   "Какой товар рекламируем?",
@@ -28,8 +29,13 @@ export function CreateWizard({ skipPayment = false }: Props) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<PipelineLogEntry[]>([]);
+  const [localLogs, setLocalLogs] = useState<PipelineLogEntry[]>([]);
   const [activeLog, setActiveLog] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+
+  const { job: polledJob } = useJobProgressPoll(jobId, {
+    enabled: Boolean(jobId),
+  });
 
   const [productUrl, setProductUrl] = useState("");
   const [product, setProduct] = useState<ProductCard | null>(null);
@@ -40,10 +46,10 @@ export function CreateWizard({ skipPayment = false }: Props) {
   const [ctaValue, setCtaValue] = useState("");
   const [parsedUrl, setParsedUrl] = useState<string | null>(null);
 
-  function pushLog(text: string) {
-    setLogs((prev) => [
+  function pushLog(text: string, kind?: PipelineLogEntry["kind"]) {
+    setLocalLogs((prev) => [
       ...prev,
-      { at: new Date().toISOString(), text },
+      { at: new Date().toISOString(), text, ...(kind ? { kind } : {}) },
     ]);
   }
 
@@ -84,6 +90,11 @@ export function CreateWizard({ skipPayment = false }: Props) {
       return;
     }
 
+    if (step === 1) {
+      const label = REEL_TYPES.find((t) => t.id === reelType)?.label ?? reelType;
+      pushLog(`тип ролика: ${label}`);
+    }
+
     setStep((s) => s + 1);
   }
 
@@ -105,6 +116,13 @@ export function CreateWizard({ skipPayment = false }: Props) {
         ...highlights,
         ...(customHighlight ? [customHighlight] : []),
       ];
+      const submitLogs: PipelineLogEntry[] = [
+        ...localLogs,
+        ...(activeLog
+          ? [{ at: new Date().toISOString(), text: activeLog }]
+          : []),
+      ];
+
       const res = await fetch("/api/pipeline/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -117,6 +135,7 @@ export function CreateWizard({ skipPayment = false }: Props) {
           ctaType,
           ctaValue: ctaValue || undefined,
           tier: "basic",
+          wizardLogs: submitLogs,
         }),
       });
       const data = await res.json();
@@ -127,7 +146,7 @@ export function CreateWizard({ skipPayment = false }: Props) {
         throw new Error(msg);
       }
 
-      pushLog(skipPayment ? "запущена генерация" : "оплата принята");
+      setJobId(data.jobId);
 
       if (data.skipPayment) {
         router.push(`/create/result/${data.jobId}`);
@@ -156,6 +175,9 @@ export function CreateWizard({ skipPayment = false }: Props) {
 
   const productLabel =
     product?.title?.trim() || productUrl.trim() || undefined;
+
+  const logEntries = polledJob?.progressJson?.logs ?? localLogs;
+  const logUsage = polledJob?.progressJson?.usage;
 
   return (
     <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
@@ -317,8 +339,9 @@ export function CreateWizard({ skipPayment = false }: Props) {
 
       <PipelineLog
         productLabel={productLabel}
-        entries={logs}
+        entries={logEntries}
         activeMessage={activeLog}
+        usage={logUsage}
       />
     </div>
   );

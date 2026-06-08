@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pipelineLogEntrySchema } from "./pipeline-progress";
 
 export const REEL_TYPES = [
   { id: "promo", label: "Акция" },
@@ -161,6 +162,7 @@ export const wizardFormSchema = z.object({
   ctaType: ctaTypeSchema,
   ctaValue: z.string().optional(),
   tier: tierSchema.default("basic"),
+  wizardLogs: z.array(pipelineLogEntrySchema).optional(),
 });
 
 export type WizardForm = z.infer<typeof wizardFormSchema>;
@@ -236,10 +238,21 @@ export {
   PIPELINE_STEP_IDS,
   PIPELINE_STEP_LABELS,
   pipelineProgressSchema,
+  pipelineUsageSchema,
+  pipelineLogKindSchema,
   sceneImageSchema,
   sceneImagesSchema,
   createInitialProgress,
   appendPipelineLog,
+  appendServiceLog,
+  appendUsageLog,
+  maskSecret,
+  mergeWizardLogs,
+  resetPipelineSteps,
+  recordOpenAiChatUsage,
+  recordOpenAiImageUsage,
+  recordTavilySearch,
+  summarizePipelineUsage,
   setPipelineActiveStep,
   markPipelineStep,
   isApprovalReadyStatus,
@@ -249,9 +262,15 @@ export {
   PIPELINE_LOG_ON_START,
   PIPELINE_LOG_ON_DONE,
   pipelineLogEntrySchema,
+  openAiChatUsageEntrySchema,
+  openAiImageUsageEntrySchema,
   type PipelineLogEntry,
+  type PipelineLogKind,
   type PipelineStepId,
   type PipelineProgress,
   type PipelineStepState,
+  type PipelineUsage,
+  type OpenAiChatUsageEntry,
+  type OpenAiImageUsageEntry,
   type SceneImage,
 } from "./pipeline-progress";

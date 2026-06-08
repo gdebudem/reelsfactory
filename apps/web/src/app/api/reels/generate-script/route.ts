@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const input = generateScriptRequestSchema.parse(body);
-    const script = await generateReelScript(input);
+    const result = await generateReelScript(input);
 
     if (input.jobId) {
       if (!hasDatabaseConfigured()) {
@@ -17,11 +17,14 @@ export async function POST(req: Request) {
       }
       await prisma.reelJob.update({
         where: { id: input.jobId },
-        data: { scriptJson: script, templateId: script.templateId },
+        data: {
+          scriptJson: result.script,
+          templateId: result.script.templateId,
+        },
       });
     }
 
-    return NextResponse.json({ script });
+    return NextResponse.json({ script: result.script, usage: result.usage });
   } catch (e) {
     console.error("[generate-script]", e);
     return NextResponse.json(

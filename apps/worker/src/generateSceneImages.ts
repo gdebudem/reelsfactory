@@ -2,7 +2,12 @@ import type { PrismaClient } from "@prisma/client";
 import { generateSceneImages } from "@reels-factory/scene-images";
 import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import type { PipelineStepId } from "@reels-factory/shared";
-import { touchJobProgress } from "./jobProgress.js";
+import {
+  appendJobImageUsage,
+  appendJobLog,
+  ensureWorkerServiceDiagnostics,
+  touchJobProgress,
+} from "./jobProgress.js";
 import { uploadToStorage } from "./storage.js";
 
 const IMAGE_STEPS: PipelineStepId[] = [
@@ -33,16 +38,27 @@ export async function processGenerateSceneImages(
   }
 
   console.log(`[worker] Generating 4 scene images for ${jobId}`);
+  await ensureWorkerServiceDiagnostics(prisma, jobId);
+  await appendJobLog(prisma, jobId, "worker · генерация 4 AI-картинок");
 
   const sceneImages = await generateSceneImages(
     jobId,
     product,
     script,
     uploadToStorage,
-    async (sceneIndex, phase) => {
+    async (sceneIndex, phase, meta) => {
       const stepId = IMAGE_STEPS[sceneIndex];
       if (!stepId) return;
       await touchJobProgress(prisma, jobId, phase, stepId);
+      if (phase === "complete" && meta) {
+        await appendJobImageUsage(prisma, jobId, {
+          sceneIndex,
+          model: meta.model,
+          quality: meta.quality,
+          size: meta.size,
+          mode: meta.mode,
+        });
+      }
     }
   );
 

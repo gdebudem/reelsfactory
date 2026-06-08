@@ -11,7 +11,8 @@ export type SceneImageUploader = (
 
 export type SceneImageProgress = (
   sceneIndex: number,
-  phase: "start" | "complete"
+  phase: "start" | "complete",
+  meta?: import("./generate.js").SceneImageGenerationMeta
 ) => void | Promise<void>;
 
 function fallbackFromProduct(
@@ -55,7 +56,18 @@ export async function generateSceneImages(
     console.warn(
       `[scene-images] MOCK/fallback — using product photos for job ${jobId}`
     );
-    return sceneImagesSchema.parse(fallbackFromProduct(product, script));
+    const fallback = sceneImagesSchema.parse(
+      fallbackFromProduct(product, script)
+    );
+    for (let i = 0; i < fallback.length; i++) {
+      await onProgress?.(i, "complete", {
+        model: "mock",
+        quality: "fallback",
+        size: "product-photo",
+        mode: "fallback",
+      });
+    }
+    return fallback;
   }
 
   const results: SceneImage[] = [];
@@ -73,7 +85,7 @@ export async function generateSceneImages(
       `[scene-images] Generating ${i + 1}/4 for job ${jobId} (${scene.style})`
     );
 
-    const buffer = await generateSceneImageBuffer({
+    const { buffer, meta } = await generateSceneImageBuffer({
       product,
       script,
       scene,
@@ -103,7 +115,7 @@ export async function generateSceneImages(
       prompt: promptPreview.slice(0, 500),
     });
 
-    await onProgress?.(i, "complete");
+    await onProgress?.(i, "complete", meta);
   }
 
   return sceneImagesSchema.parse(results);

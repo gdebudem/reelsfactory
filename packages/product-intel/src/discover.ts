@@ -46,16 +46,25 @@ export async function discoverMarketplaceUrls(
     listings.push(item);
   };
 
+  const onTavily = reporter.logTavilySearch
+    ? (q: string) => reporter.logTavilySearch!(q)
+    : undefined;
+
   await reporter.start("search_marketplaces");
 
   for (const mp of SEARCH_ORDER) {
     const stepId = PLATFORM_STEP[mp.platform];
     if (stepId) await reporter.start(stepId);
 
-    const results = await tavilySearch(`${query} купить`, 4, {
-      include_domains: mp.domains,
-      search_depth: "advanced",
-    });
+    const results = await tavilySearch(
+      `${query} купить`,
+      4,
+      {
+        include_domains: mp.domains,
+        search_depth: "advanced",
+      },
+      onTavily
+    );
 
     for (const r of results) {
       add({
@@ -70,12 +79,19 @@ export async function discoverMarketplaceUrls(
       for (const item of fallback) add(item);
     }
 
+    if (results.length > 0) {
+      const sample = results[0]!.url.replace(/^https?:\/\//, "").slice(0, 60);
+      await reporter.log(`${mp.platform}: найдено ${results.length} · ${sample}`);
+    }
+
     if (stepId) await reporter.complete(stepId);
   }
 
   const crossResults = await tavilySearch(
     `${query} отзывы цена site:ozon.ru OR site:wildberries.ru OR site:mvideo.ru OR site:market.yandex.ru`,
-    6
+    6,
+    {},
+    onTavily
   );
   for (const r of crossResults) {
     const mp = detectMarketplace(r.url);

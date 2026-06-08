@@ -83,29 +83,107 @@ export const PIPELINE_LOG_ON_DONE: Partial<Record<PipelineStepId, string>> = {
   assemble_video: "видео готово",
 };
 
+export const pipelineLogKindSchema = z.enum([
+  "info",
+  "service",
+  "usage",
+  "error",
+]);
+
+export type PipelineLogKind = z.infer<typeof pipelineLogKindSchema>;
+
 export const pipelineLogEntrySchema = z.object({
   at: z.string(),
   text: z.string(),
+  kind: pipelineLogKindSchema.optional(),
+  meta: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .optional(),
 });
 
 export type PipelineLogEntry = z.infer<typeof pipelineLogEntrySchema>;
+
+export const openAiChatUsageEntrySchema = z.object({
+  label: z.string(),
+  model: z.string(),
+  promptTokens: z.number().int().nonnegative(),
+  completionTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  at: z.string(),
+});
+
+export type OpenAiChatUsageEntry = z.infer<typeof openAiChatUsageEntrySchema>;
+
+export const openAiImageUsageEntrySchema = z.object({
+  sceneIndex: z.number().int().min(0).max(3),
+  model: z.string(),
+  quality: z.string(),
+  size: z.string(),
+  mode: z.enum(["generate", "edit", "fallback"]).optional(),
+  at: z.string(),
+});
+
+export type OpenAiImageUsageEntry = z.infer<typeof openAiImageUsageEntrySchema>;
+
+export const pipelineUsageSchema = z.object({
+  openaiChat: z.array(openAiChatUsageEntrySchema).default([]),
+  openaiImages: z.array(openAiImageUsageEntrySchema).default([]),
+  tavily: z
+    .object({
+      searchCount: z.number().int().nonnegative().default(0),
+    })
+    .default({ searchCount: 0 }),
+  updatedAt: z.string().optional(),
+});
+
+export type PipelineUsage = z.infer<typeof pipelineUsageSchema>;
 
 export const pipelineProgressSchema = z.object({
   currentStep: z.enum(PIPELINE_STEP_IDS).optional(),
   completedSteps: z.array(z.enum(PIPELINE_STEP_IDS)).default([]),
   imageProgress: z.number().int().min(0).max(4).default(0),
   logs: z.array(pipelineLogEntrySchema).default([]),
+  usage: pipelineUsageSchema.optional(),
   updatedAt: z.string().optional(),
 });
 
 export type PipelineProgress = z.infer<typeof pipelineProgressSchema>;
 
+export function maskSecret(value?: string | null): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return "не задан";
+  if (trimmed.length <= 6) return "…" + trimmed.slice(-2);
+  const prefix = trimmed.startsWith("sk-")
+    ? "sk-"
+    : trimmed.startsWith("tvly-")
+      ? "tvly-"
+      : "";
+  return `${prefix}…${trimmed.slice(-4)}`;
+}
+
+function formatTokenCount(n: number): string {
+  return n.toLocaleString("ru-RU");
+}
+
+function ensureUsage(progress: PipelineProgress): PipelineUsage {
+  return (
+    progress.usage ?? {
+      openaiChat: [],
+      openaiImages: [],
+      tavily: { searchCount: 0 },
+    }
+  );
+}
+
 export function appendPipelineLog(
   progress: PipelineProgress,
-  text: string
+  text: string,
+  kind: PipelineLogKind = "info",
+  meta?: Record<string, unknown>
 ): PipelineProgress {
   const logs = progress.logs ?? [];
-  if (logs[logs.length - 1]?.text === text) {
+  const last = logs[logs.length - 1];
+  if (last?.text === text && last?.kind === kind) {
     return pipelineProgressSchema.parse({
       ...progress,
       updatedAt: new Date().toISOString(),
@@ -113,9 +191,206 @@ export function appendPipelineLog(
   }
   return pipelineProgressSchema.parse({
     ...progress,
-    logs: [...logs, { at: new Date().toISOString(), text }],
+    logs: [
+      ...logs,
+      {
+        at: new Date().toISOString(),
+        text,
+        kind,
+        ...(meta ? { meta } : {}),
+      },
+    ],
     updatedAt: new Date().toISOString(),
   });
+}
+
+export function appendServiceLog(
+  progress: PipelineProgress,
+  params: {
+    service: string;
+    account?: string;
+    runtime?: string;
+    detail?: string;
+  }
+): PipelineProgress {
+  const parts = [params.service];
+  if (params.account) parts.push(`аккаунт ${params.account}`);
+  if (params.runtime) parts.push(params.runtime);
+  if (params.detail) parts.push(params.detail);
+  const text = parts.join(" · ");
+  return appendPipelineLog(progress, text, "service", {
+    service: params.service,
+    account: params.account,
+    runtime: params.runtime,
+    detail: params.detail,
+  });
+}
+
+export function appendUsageLog(
+  progress: PipelineProgress,
+  text: string,
+  meta?: Record<string, unknown>
+): PipelineProgress {
+  return appendPipelineLog(progress, text, "usage", meta);
+}
+
+export function recordOpenAiChatUsage(
+  progress: PipelineProgress,
+  entry: Omit<OpenAiChatUsageEntry, "at"> & { at?: string }
+): PipelineProgress {
+  const at = entry.at ?? new Date().toISOString();
+  const usage = ensureUsage(progress);
+  const full: OpenAiChatUsageEntry = {
+    label: entry.label,
+    model: entry.model,
+    promptTokens: entry.promptTokens,
+    completionTokens: entry.completionTokens,
+    totalTokens: entry.totalTokens,
+    at,
+  };
+  const text = `${entry.label} · ${formatTokenCount(entry.promptTokens)} prompt + ${formatTokenCount(entry.completionTokens)} completion = ${formatTokenCount(entry.totalTokens)} · ${entry.model}`;
+  return appendUsageLog(
+    {
+      ...progress,
+      usage: {
+        ...usage,
+        openaiChat: [...usage.openaiChat, full],
+        updatedAt: at,
+      },
+    },
+    text,
+    { label: entry.label, model: entry.model, totalTokens: entry.totalTokens }
+  );
+}
+
+export function recordOpenAiImageUsage(
+  progress: PipelineProgress,
+  entry: Omit<OpenAiImageUsageEntry, "at"> & { at?: string }
+): PipelineProgress {
+  const at = entry.at ?? new Date().toISOString();
+  const usage = ensureUsage(progress);
+  const full: OpenAiImageUsageEntry = {
+    sceneIndex: entry.sceneIndex,
+    model: entry.model,
+    quality: entry.quality,
+    size: entry.size,
+    mode: entry.mode,
+    at,
+  };
+  const modeLabel =
+    entry.mode === "edit"
+      ? "reference edit"
+      : entry.mode === "fallback"
+        ? "fallback"
+        : "generate";
+  const text = `картинка ${entry.sceneIndex + 1}/4 · ${entry.model} · ${entry.quality} · ${entry.size} · ${modeLabel}`;
+  return appendUsageLog(
+    {
+      ...progress,
+      usage: {
+        ...usage,
+        openaiImages: [...usage.openaiImages, full],
+        updatedAt: at,
+      },
+    },
+    text,
+    { sceneIndex: entry.sceneIndex, model: entry.model }
+  );
+}
+
+export function recordTavilySearch(
+  progress: PipelineProgress,
+  query?: string
+): PipelineProgress {
+  const usage = ensureUsage(progress);
+  const count = usage.tavily.searchCount + 1;
+  const shortQuery = query
+    ? query.length > 48
+      ? `${query.slice(0, 45)}…`
+      : query
+    : undefined;
+  const text = shortQuery
+    ? `Tavily поиск #${count}: ${shortQuery}`
+    : `Tavily · ${count} поисков`;
+  return appendUsageLog(
+    {
+      ...progress,
+      usage: {
+        ...usage,
+        tavily: { searchCount: count },
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    text,
+    { searchCount: count }
+  );
+}
+
+export function resetPipelineSteps(
+  progress: PipelineProgress
+): PipelineProgress {
+  return pipelineProgressSchema.parse({
+    ...progress,
+    currentStep: undefined,
+    completedSteps: [],
+    imageProgress: 0,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export function mergeWizardLogs(
+  progress: PipelineProgress,
+  wizardLogs: PipelineLogEntry[]
+): PipelineProgress {
+  const merged = [...(progress.logs ?? [])];
+  for (const entry of wizardLogs) {
+    const last = merged[merged.length - 1];
+    if (last?.text === entry.text && last?.kind === (entry.kind ?? "info")) {
+      continue;
+    }
+    merged.push({
+      at: entry.at,
+      text: entry.text,
+      kind: entry.kind ?? "info",
+      ...(entry.meta ? { meta: entry.meta } : {}),
+    });
+  }
+  return pipelineProgressSchema.parse({
+    ...progress,
+    logs: merged,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export function summarizePipelineUsage(
+  usage: PipelineUsage | undefined
+): {
+  chatPrompt: number;
+  chatCompletion: number;
+  chatTotal: number;
+  imageCount: number;
+  tavilySearches: number;
+} {
+  const u = usage ?? {
+    openaiChat: [],
+    openaiImages: [],
+    tavily: { searchCount: 0 },
+  };
+  let chatPrompt = 0;
+  let chatCompletion = 0;
+  let chatTotal = 0;
+  for (const e of u.openaiChat) {
+    chatPrompt += e.promptTokens;
+    chatCompletion += e.completionTokens;
+    chatTotal += e.totalTokens;
+  }
+  return {
+    chatPrompt,
+    chatCompletion,
+    chatTotal,
+    imageCount: u.openaiImages.length,
+    tavilySearches: u.tavily.searchCount,
+  };
 }
 
 function logOnStart(
@@ -151,6 +426,11 @@ export function createInitialProgress(): PipelineProgress {
     completedSteps: [],
     imageProgress: 0,
     logs: [],
+    usage: {
+      openaiChat: [],
+      openaiImages: [],
+      tavily: { searchCount: 0 },
+    },
     updatedAt: new Date().toISOString(),
   });
 }

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import {
+  appendPipelineLog,
+  createInitialProgress,
+  pipelineProgressSchema,
+} from "@reels-factory/shared";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 
@@ -30,10 +35,20 @@ export async function POST(req: Request) {
     const tier = session.metadata?.tier;
 
     if (reelJobId) {
+      const existing = await prisma.reelJob.findUnique({
+        where: { id: reelJobId },
+        select: { progressJson: true },
+      });
+      const progress = pipelineProgressSchema.parse(
+        existing?.progressJson ?? createInitialProgress()
+      );
+      const paidProgress = appendPipelineLog(progress, "оплата принята · Stripe");
+
       await prisma.reelJob.update({
         where: { id: reelJobId },
         data: {
           status: "paid",
+          progressJson: paidProgress,
           ...(tier ? { tier } : {}),
         },
       });

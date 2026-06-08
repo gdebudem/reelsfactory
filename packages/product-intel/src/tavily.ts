@@ -14,7 +14,8 @@ export type TavilySearchOptions = {
 export async function tavilySearch(
   query: string,
   maxResults = 5,
-  options: TavilySearchOptions = {}
+  options: TavilySearchOptions = {},
+  onSearch?: (query: string) => void | Promise<void>
 ): Promise<TavilyResult[]> {
   const apiKey = process.env.TAVILY_API_KEY?.trim();
   if (!apiKey) return [];
@@ -40,6 +41,8 @@ export async function tavilySearch(
     return [];
   }
 
+  await onSearch?.(query);
+
   const data = (await res.json()) as {
     results?: { title?: string; url?: string; content?: string }[];
   };
@@ -53,7 +56,11 @@ export async function tavilySearch(
     }));
 }
 
-export async function searchProductWeb(productTitle: string, brand?: string) {
+export async function searchProductWeb(
+  productTitle: string,
+  brand?: string,
+  onSearch?: (query: string) => void | Promise<void>
+) {
   const label = brand ? `${productTitle} ${brand}` : productTitle;
   const queries = [
     `${label} отзывы покупателей`,
@@ -62,8 +69,8 @@ export async function searchProductWeb(productTitle: string, brand?: string) {
   ];
 
   const batches = await Promise.all([
-    tavilySearch(queries[0]!, 4, { country: "russia" }),
-    tavilySearch(queries[1]!, 4, { country: "russia" }),
+    tavilySearch(queries[0]!, 4, { country: "russia" }, onSearch),
+    tavilySearch(queries[1]!, 4, { country: "russia" }, onSearch),
     tavilySearch(queries[2]!, 5, {
       country: "russia",
       include_domains: [
@@ -72,7 +79,7 @@ export async function searchProductWeb(productTitle: string, brand?: string) {
         "mvideo.ru",
         "market.yandex.ru",
       ],
-    }),
+    }, onSearch),
   ]);
 
   const seen = new Set<string>();

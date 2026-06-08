@@ -17,3 +17,17 @@ export type GenerateScriptInput = {
   ctaValue?: string;
   tier?: z.infer<typeof tierSchema>;
 };
+
+export type GenerateScriptUsage = {
+  label: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+export type GenerateScriptResult = {
+  script: import("@reels-factory/shared").ReelScript;
+  usage?: GenerateScriptUsage;
+  mock?: boolean;
+};

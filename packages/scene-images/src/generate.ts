@@ -135,9 +135,16 @@ export type SceneGenerationInput = {
   referenceImageUrl?: string;
 };
 
+export type SceneImageGenerationMeta = {
+  model: string;
+  quality: string;
+  size: string;
+  mode: "generate" | "edit" | "fallback";
+};
+
 export async function generateSceneImageBuffer(
   input: SceneGenerationInput
-): Promise<Buffer> {
+): Promise<{ buffer: Buffer; meta: SceneImageGenerationMeta }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not set");
@@ -165,12 +172,21 @@ export async function generateSceneImageBuffer(
       console.log(
         `[scene-images] Reference edit scene ${sceneIndex + 1} model=${model} quality=${getGptQuality()}`
       );
-      return await generateFromReference(
+      const buffer = await generateFromReference(
         openai,
         model,
         editPrompt,
         referenceBuf
       );
+      return {
+        buffer,
+        meta: {
+          model,
+          quality: String(getGptQuality() ?? "high"),
+          size: String(getEditSize(model)),
+          mode: "edit" as const,
+        },
+      };
     } catch (editErr) {
       console.warn(
         "[scene-images] Reference edit failed, falling back to generate:",
@@ -180,9 +196,20 @@ export async function generateSceneImageBuffer(
   }
 
   const prompt = buildSceneImagePrompt(product, script, scene, sceneIndex);
+  const quality = String(getQuality(model) ?? "standard");
+  const size = String(getGenerateSize(model));
   console.log(
-    `[scene-images] Generate scene ${sceneIndex + 1} model=${model} quality=${getQuality(model)} size=${getGenerateSize(model)}`
+    `[scene-images] Generate scene ${sceneIndex + 1} model=${model} quality=${quality} size=${size}`
   );
-  return generateFromPrompt(openai, model, prompt);
+  const buffer = await generateFromPrompt(openai, model, prompt);
+  return {
+    buffer,
+    meta: {
+      model,
+      quality,
+      size,
+      mode: "generate" as const,
+    },
+  };
 }
 

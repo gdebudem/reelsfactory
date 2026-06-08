@@ -29,16 +29,22 @@ export async function buildProductIntel(
   const { product: enriched, marketplaceListings } =
     await fetchMarketplaceProducts(product, discovered, reporter);
 
+  const onTavily = reporter.logTavilySearch
+    ? (q: string) => reporter.logTavilySearch!(q)
+    : undefined;
+
   const searchResults = await searchProductWeb(
     enriched.title,
-    enriched.brand
+    enriched.brand,
+    onTavily
   );
 
   await reporter.start("extract_benefits");
   const intel = await synthesizeProductIntel(
     enriched,
     searchResults,
-    marketplaceListings
+    marketplaceListings,
+    reporter
   );
   await reporter.complete("extract_benefits");
 

@@ -15,7 +15,11 @@ import {
   rankConsumerHooks,
 } from "./product-hooks";
 import { buildViralMockScript } from "./viral-script";
-import type { GenerateScriptInput } from "./types";
+import type {
+  GenerateScriptInput,
+  GenerateScriptResult,
+  GenerateScriptUsage,
+} from "./types";
 
 type ReelType = z.infer<typeof reelTypeSchema>;
 type CtaType = z.infer<typeof ctaTypeSchema>;
@@ -30,7 +34,11 @@ export function getOpenAiModel() {
 
 export { buildProductContext, rankConsumerHooks, pickReviewQuote } from "./product-hooks";
 export { buildViralMockScript } from "./viral-script";
-export type { GenerateScriptInput } from "./types";
+export type {
+  GenerateScriptInput,
+  GenerateScriptResult,
+  GenerateScriptUsage,
+} from "./types";
 
 const TONE_BY_TYPE: Record<ReelType, string> = {
   promo: "яркий, срочный, акцент на выгоде и цене",
@@ -123,10 +131,13 @@ export function buildMockScript(input: GenerateScriptInput): ReelScript {
 
 export async function generateReelScript(
   input: GenerateScriptInput
-): Promise<ReelScript> {
+): Promise<GenerateScriptResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return buildViralMockScript(input, input.productIntel);
+    return {
+      script: buildViralMockScript(input, input.productIntel),
+      mock: true,
+    };
   }
 
   const openai = new OpenAI({ apiKey });
@@ -202,16 +213,38 @@ export async function generateReelScript(
     });
 
     const content = completion.choices[0]?.message?.content;
-    if (!content) return buildViralMockScript(input, intel);
+    const model = getOpenAiModel();
+    const usage: GenerateScriptUsage | undefined = completion.usage
+      ? {
+          label: "сценарий",
+          model,
+          promptTokens: completion.usage.prompt_tokens ?? 0,
+          completionTokens: completion.usage.completion_tokens ?? 0,
+          totalTokens: completion.usage.total_tokens ?? 0,
+        }
+      : undefined;
+
+    if (!content) {
+      return {
+        script: buildViralMockScript(input, intel),
+        mock: true,
+      };
+    }
 
     const parsed = JSON.parse(content);
     const script = reelScriptSchema.parse({
       ...parsed,
       templateId: "viral_v1",
     });
-    return normalizeViralScenes(script);
+    return {
+      script: normalizeViralScenes(script),
+      usage,
+    };
   } catch {
-    return buildViralMockScript(input, intel);
+    return {
+      script: buildViralMockScript(input, intel),
+      mock: true,
+    };
   }
 }
 
