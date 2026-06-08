@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import {
   appendPipelineLog,
   createInitialProgress,
-  pipelineProgressSchema,
+  parsePipelineProgress,
 } from "@reels-factory/shared";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
         where: { id: reelJobId },
         select: { progressJson: true },
       });
-      const progress = pipelineProgressSchema.parse(
+      const progress = parsePipelineProgress(
         existing?.progressJson ?? createInitialProgress()
       );
       const paidProgress = appendPipelineLog(progress, "оплата принята · Stripe");

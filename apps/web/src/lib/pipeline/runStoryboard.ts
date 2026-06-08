@@ -6,7 +6,7 @@ import type {
   ctaTypeSchema,
 } from "@reels-factory/shared";
 import {
-  pipelineProgressSchema,
+  parsePipelineProgress,
   resetPipelineSteps,
   shouldRegenerateScript,
 } from "@reels-factory/shared";
@@ -35,7 +35,7 @@ export async function runStoryboard(
 
   if (needsIntel) {
     const session = await getServerSession(authOptions);
-    let progress = pipelineProgressSchema.parse(
+    let progress = parsePipelineProgress(
       job.progressJson ?? { completedSteps: [], imageProgress: 0, logs: [] }
     );
     progress = resetPipelineSteps(progress);

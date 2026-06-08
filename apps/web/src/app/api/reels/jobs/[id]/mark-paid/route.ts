@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   appendPipelineLog,
   createInitialProgress,
-  pipelineProgressSchema,
+  parsePipelineProgress,
 } from "@reels-factory/shared";
 import { prisma } from "@/lib/prisma";
 
@@ -20,7 +20,7 @@ export async function POST(
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
 
-  const progress = pipelineProgressSchema.parse(
+  const progress = parsePipelineProgress(
     job.progressJson ?? createInitialProgress()
   );
   const alreadyLogged = progress.logs.some((l) =>

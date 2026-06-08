@@ -149,6 +149,55 @@ export const pipelineProgressSchema = z.object({
 
 export type PipelineProgress = z.infer<typeof pipelineProgressSchema>;
 
+function sanitizeLogMeta(
+  meta?: Record<string, unknown>
+): Record<string, string | number | boolean | null> | undefined {
+  if (!meta) return undefined;
+  const out: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(meta)) {
+    if (value === undefined) continue;
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      value === null
+    ) {
+      out[key] = value;
+    } else {
+      out[key] = String(value);
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function preprocessProgressJson(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const obj = raw as Record<string, unknown>;
+  if (!Array.isArray(obj.logs)) return raw;
+
+  return {
+    ...obj,
+    logs: obj.logs.map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return entry;
+      }
+      const log = entry as Record<string, unknown>;
+      if (!log.meta || typeof log.meta !== "object" || Array.isArray(log.meta)) {
+        return entry;
+      }
+      const meta = sanitizeLogMeta(log.meta as Record<string, unknown>);
+      if (meta) return { ...log, meta };
+      const { meta: _removed, ...rest } = log;
+      return rest;
+    }),
+  };
+}
+
+/** Safe parse for progressJson from DB (strips invalid meta fields). */
+export function parsePipelineProgress(raw: unknown): PipelineProgress {
+  return pipelineProgressSchema.parse(preprocessProgressJson(raw));
+}
+
 export function maskSecret(value?: string | null): string {
   const trimmed = value?.trim();
   if (!trimmed) return "не задан";
@@ -189,6 +238,7 @@ export function appendPipelineLog(
       updatedAt: new Date().toISOString(),
     });
   }
+  const cleanMeta = sanitizeLogMeta(meta);
   return pipelineProgressSchema.parse({
     ...progress,
     logs: [
@@ -197,7 +247,7 @@ export function appendPipelineLog(
         at: new Date().toISOString(),
         text,
         kind,
-        ...(meta ? { meta } : {}),
+        ...(cleanMeta ? { meta: cleanMeta } : {}),
       },
     ],
     updatedAt: new Date().toISOString(),
@@ -218,12 +268,11 @@ export function appendServiceLog(
   if (params.runtime) parts.push(params.runtime);
   if (params.detail) parts.push(params.detail);
   const text = parts.join(" · ");
-  return appendPipelineLog(progress, text, "service", {
-    service: params.service,
-    account: params.account,
-    runtime: params.runtime,
-    detail: params.detail,
-  });
+  const meta: Record<string, string> = { service: params.service };
+  if (params.account !== undefined) meta.account = params.account;
+  if (params.runtime !== undefined) meta.runtime = params.runtime;
+  if (params.detail !== undefined) meta.detail = params.detail;
+  return appendPipelineLog(progress, text, "service", meta);
 }
 
 export function appendUsageLog(

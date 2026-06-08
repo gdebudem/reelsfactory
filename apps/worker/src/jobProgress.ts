@@ -3,7 +3,7 @@ import {
   appendPipelineLog,
   createInitialProgress,
   markPipelineStep,
-  pipelineProgressSchema,
+  parsePipelineProgress,
   recordOpenAiImageUsage,
   setPipelineActiveStep,
   type OpenAiImageUsageEntry,
@@ -21,7 +21,7 @@ async function loadProgress(
     where: { id: jobId },
     select: { progressJson: true },
   });
-  return pipelineProgressSchema.parse(
+  return parsePipelineProgress(
     job?.progressJson ?? createInitialProgress()
   );
 }

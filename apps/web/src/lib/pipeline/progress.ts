@@ -2,7 +2,7 @@ import {
   appendPipelineLog,
   createInitialProgress,
   markPipelineStep,
-  pipelineProgressSchema,
+  parsePipelineProgress,
   recordOpenAiChatUsage,
   recordOpenAiImageUsage,
   recordTavilySearch,
@@ -22,7 +22,7 @@ async function loadProgress(jobId: string): Promise<PipelineProgress> {
     select: { progressJson: true },
   });
   if (!job?.progressJson) return createInitialProgress();
-  return pipelineProgressSchema.parse(job.progressJson);
+  return parsePipelineProgress(job.progressJson);
 }
 
 async function saveProgress(

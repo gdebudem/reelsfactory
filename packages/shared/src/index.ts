@@ -243,6 +243,7 @@ export {
   sceneImageSchema,
   sceneImagesSchema,
   createInitialProgress,
+  parsePipelineProgress,
   appendPipelineLog,
   appendServiceLog,
   appendUsageLog,
