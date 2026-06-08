@@ -2,19 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PhonePreview } from "./PhonePreview";
-import { ScriptPanel } from "./ScriptPanel";
 import { GeneratedScenesPanel } from "./GeneratedScenesPanel";
-import { StoryboardPanel } from "./StoryboardPanel";
-import { IntelPanel, jobStatusLabel } from "./IntelPanel";
-import { PipelineChecklist } from "./PipelineChecklist";
+import { PipelineLog } from "./PipelineLog";
 import { isDemoVideoUrl } from "@/lib/video";
 import {
+  getActivePipelineLogMessage,
   isPreviewReadyStatus,
   type PipelineProgress,
   type ProductCard,
-  type ProductIntel,
-  type ReelScript,
   type SceneImage,
 } from "@reels-factory/shared";
 
@@ -24,8 +19,6 @@ type Job = {
   videoUrl: string | null;
   errorMessage: string | null;
   productJson: ProductCard;
-  productIntelJson: ProductIntel | null;
-  scriptJson: ReelScript | null;
   sceneImagesJson: SceneImage[] | null;
   progressJson: PipelineProgress | null;
 };
@@ -148,81 +141,69 @@ export function JobProgress({ jobId }: { jobId: string }) {
   }
 
   const product = job?.productJson;
-  const script = job?.scriptJson;
-  const intel = job?.productIntelJson;
+  const productLabel = product?.title?.trim();
+
+  const logPanel = (
+    <PipelineLog
+      productLabel={productLabel}
+      entries={job?.progressJson?.logs ?? []}
+      activeMessage={
+        job
+          ? getActivePipelineLogMessage(job.progressJson, job.status)
+          : null
+      }
+    />
+  );
 
   if (!job) {
     return (
-      <div className="py-20 text-center">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-        <p className="mt-4 text-slate-600">Загрузка…</p>
+      <div className="grid gap-10 lg:grid-cols-2">
+        <div className="py-20 text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
+          <p className="mt-4 text-slate-600">Загрузка…</p>
+        </div>
+        <PipelineLog productLabel={undefined} entries={[]} />
       </div>
     );
   }
 
   if (job.status === "failed") {
     return (
-      <div className="space-y-6">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-          <p className="font-semibold text-red-800">Ошибка</p>
-          <p className="mt-2 text-sm text-red-600">{job.errorMessage}</p>
+      <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
+        <div className="space-y-4">
+          <p className="text-lg font-semibold text-red-800">Ошибка</p>
+          <p className="text-sm text-red-600">{job.errorMessage}</p>
           <button
             type="button"
             onClick={() => router.push("/create")}
-            className="mt-4 text-indigo-600 underline"
+            className="text-indigo-600 underline"
           >
             Попробовать снова
           </button>
         </div>
-        <PipelineChecklist
-          progress={job.progressJson}
-          jobStatus={job.status}
-        />
+        {logPanel}
       </div>
     );
   }
 
   if (isPreviewReadyStatus(job.status)) {
-    if (!script || !product) {
-      return (
-        <div className="py-12 text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-          <p className="mt-4 text-slate-600">Завершаем раскадровку…</p>
-        </div>
-      );
-    }
-
     const hasAiImages = (job.sceneImagesJson?.length ?? 0) >= 4;
 
     return (
-      <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-bold text-violet-900">
-              {hasAiImages
-                ? "Картинки готовы — проверьте сцены"
-                : "Раскадровка готова — проверьте сценарий"}
+            <h2 className="text-2xl font-bold text-slate-900">
+              {hasAiImages ? "Картинки готовы" : "Раскадровка готова"}
             </h2>
             <p className="mt-2 text-slate-600">
-              {hasAiImages
-                ? "Ниже 4 сгенерированные картинки. Видео соберём только после подтверждения."
-                : "Ниже 4 сцены с текстом. Видео начнёт генерироваться только после подтверждения."}
+              Проверьте результат и подтвердите создание видео
             </p>
           </div>
 
-          <PipelineChecklist
-            progress={job.progressJson}
-            jobStatus={job.status}
-            compact
-          />
-
           {hasAiImages && job.sceneImagesJson ? (
             <GeneratedScenesPanel scenes={job.sceneImagesJson} />
-          ) : (
-            <StoryboardPanel product={product} script={script} />
-          )}
-          {intel && <IntelPanel intel={intel} />}
-          <ScriptPanel script={script} />
+          ) : null}
 
           {actionError && (
             <p className="text-sm text-red-600">{actionError}</p>
@@ -246,12 +227,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
             </button>
           </div>
         </div>
-        <div className="flex flex-col items-center gap-3 lg:items-end">
-          <p className="text-center text-sm font-medium text-slate-600 lg:text-right">
-            Превью
-          </p>
-          <PhonePreview product={product} script={script} />
-        </div>
+        {logPanel}
       </div>
     );
   }
@@ -260,110 +236,55 @@ export function JobProgress({ jobId }: { jobId: string }) {
     const demoVideo = isDemoVideoUrl(job.videoUrl);
 
     return (
-      <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
         <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold text-green-700">
-              {demoVideo ? "Сценарий готов!" : "Готово!"}
-            </h2>
-            {demoVideo ? (
-              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                <p className="font-medium">Видео в плеере — демо-заглушка</p>
-                <p className="mt-1">
-                  Реальный MP4 с вашим товаром появится после настройки
-                  хранилища (S3/R2) и рендера на worker.
-                </p>
-              </div>
-            ) : (
-              <p className="mt-2 text-slate-600">
-                Скачайте ролик и публикуйте в соцсетях
-              </p>
-            )}
-            {job.videoUrl && !demoVideo && (
-              <>
-                <video
-                  src={job.videoUrl}
-                  controls
-                  className="mt-6 w-full max-w-md rounded-2xl shadow-lg"
-                />
-                <a
-                  href={job.videoUrl}
-                  download
-                  className="mt-4 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white"
-                >
-                  Скачать MP4
-                </a>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => router.push("/create")}
-              className="mt-4 text-indigo-600 underline"
-            >
-              Создать ещё
-            </button>
-          </div>
-
-          <PipelineChecklist
-            progress={job.progressJson}
-            jobStatus={job.status}
-            compact
-          />
-
-          {script && <ScriptPanel script={script} />}
-          {intel && <IntelPanel intel={intel} />}
+          <h2 className="text-2xl font-bold text-green-700">Готово!</h2>
+          {demoVideo ? (
+            <p className="text-sm text-amber-800">
+              Видео — демо-заглушка. Настройте S3/R2 для реального MP4.
+            </p>
+          ) : null}
+          {job.videoUrl && !demoVideo && (
+            <>
+              <video
+                src={job.videoUrl}
+                controls
+                className="w-full max-w-md rounded-2xl shadow-lg"
+              />
+              <a
+                href={job.videoUrl}
+                download
+                className="inline-block rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white"
+              >
+                Скачать MP4
+              </a>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push("/create")}
+            className="text-indigo-600 underline"
+          >
+            Создать ещё
+          </button>
         </div>
-        <div className="flex flex-col items-center gap-3 lg:items-end">
-          <p className="text-center text-sm font-medium text-slate-600 lg:text-right">
-            Превью вашего ролика
-          </p>
-          <PhonePreview product={product} script={script} />
-        </div>
+        {logPanel}
       </div>
     );
   }
 
-  const isRendering = RENDER_IN_PROGRESS.has(job.status);
-  const isStoryboarding = STORYBOARD_IN_PROGRESS.has(job.status);
-
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
-      <div className="space-y-6">
-        <div className="py-6 lg:py-0">
-          <h2 className="text-2xl font-bold">
-            {isRendering ? "Создаём видео…" : "Готовим ваш ролик…"}
-          </h2>
-          <p className="mt-2 text-slate-600">
-            {isRendering
-              ? "Склеиваем картинки и музыку — обычно ~1–2 минуты"
-              : "ИИ ищет товар на маркетплейсах, пишет сценарий и готовит картинки"}
-          </p>
-          <p className="mt-4 text-sm font-medium text-indigo-700">
-            {jobStatusLabel(job.status)}
-          </p>
-        </div>
-
-        <PipelineChecklist
-          progress={job.progressJson}
-          jobStatus={job.status}
-        />
-
-        {intel ? <IntelPanel intel={intel} /> : null}
+    <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
+      <div className="space-y-4 py-6 lg:py-0">
+        <h2 className="text-2xl font-bold text-slate-900">Готовим ваш ролик…</h2>
+        <p className="text-slate-600">
+          Следите за прогрессом в логе справа
+        </p>
         {(job.sceneImagesJson?.length ?? 0) >= 4 ? (
           <GeneratedScenesPanel scenes={job.sceneImagesJson!} />
         ) : null}
-        {script && product ? (
-          <>
-            {(job.sceneImagesJson?.length ?? 0) < 4 ? (
-              <StoryboardPanel product={product} script={script} />
-            ) : null}
-            <ScriptPanel script={script} />
-          </>
-        ) : null}
       </div>
-      <div className="flex justify-center lg:justify-end">
-        <PhonePreview product={product} script={script} />
-      </div>
+      {logPanel}
     </div>
   );
 }

@@ -6,10 +6,11 @@ import {
   REEL_TYPES,
   HIGHLIGHT_CHIPS,
   CTA_TYPES,
+  type PipelineLogEntry,
   type ProductCard,
   type WizardForm,
 } from "@reels-factory/shared";
-import { PhonePreview } from "./PhonePreview";
+import { PipelineLog } from "./PipelineLog";
 
 const STEPS = [
   "Какой товар рекламируем?",
@@ -27,6 +28,8 @@ export function CreateWizard({ skipPayment = false }: Props) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<PipelineLogEntry[]>([]);
+  const [activeLog, setActiveLog] = useState<string | null>(null);
 
   const [productUrl, setProductUrl] = useState("");
   const [product, setProduct] = useState<ProductCard | null>(null);
@@ -36,6 +39,13 @@ export function CreateWizard({ skipPayment = false }: Props) {
   const [ctaType, setCtaType] = useState<WizardForm["ctaType"]>("website");
   const [ctaValue, setCtaValue] = useState("");
   const [parsedUrl, setParsedUrl] = useState<string | null>(null);
+
+  function pushLog(text: string) {
+    setLogs((prev) => [
+      ...prev,
+      { at: new Date().toISOString(), text },
+    ]);
+  }
 
   async function parseProduct(url: string): Promise<ProductCard> {
     const res = await fetch("/api/products/parse", {
@@ -55,14 +65,18 @@ export function CreateWizard({ skipPayment = false }: Props) {
 
       setLoading(true);
       setError(null);
+      setActiveLog("подтягиваю товар");
       try {
         if (!product || parsedUrl !== url) {
           const parsed = await parseProduct(url);
           setProduct(parsed);
           setParsedUrl(url);
+          pushLog("товар загружен");
         }
+        setActiveLog(null);
         setStep(1);
       } catch (e) {
+        setActiveLog(null);
         setError(e instanceof Error ? e.message : "Ошибка");
       } finally {
         setLoading(false);
@@ -83,6 +97,9 @@ export function CreateWizard({ skipPayment = false }: Props) {
     if (!product) return;
     setLoading(true);
     setError(null);
+    setActiveLog(
+      skipPayment ? "запускаем генерацию" : "переходим к оплате"
+    );
     try {
       const allHighlights = [
         ...highlights,
@@ -110,6 +127,8 @@ export function CreateWizard({ skipPayment = false }: Props) {
         throw new Error(msg);
       }
 
+      pushLog(skipPayment ? "запущена генерация" : "оплата принята");
+
       if (data.skipPayment) {
         router.push(`/create/result/${data.jobId}`);
         return;
@@ -119,6 +138,7 @@ export function CreateWizard({ skipPayment = false }: Props) {
         return;
       }
     } catch (e) {
+      setActiveLog(null);
       setError(e instanceof Error ? e.message : "Ошибка");
     } finally {
       setLoading(false);
@@ -134,8 +154,11 @@ export function CreateWizard({ skipPayment = false }: Props) {
     return false;
   }
 
+  const productLabel =
+    product?.title?.trim() || productUrl.trim() || undefined;
+
   return (
-    <div className="grid gap-10 lg:grid-cols-2">
+    <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
       <div>
         <div className="mb-6 flex gap-2">
           {STEPS.map((_, i) => (
@@ -150,7 +173,9 @@ export function CreateWizard({ skipPayment = false }: Props) {
         <p className="text-sm font-medium text-indigo-600">
           Шаг {step + 1} из 4
         </p>
-        <h2 className="mt-2 text-2xl font-bold text-slate-900">{STEPS[step]}</h2>
+        <h2 className="mt-2 text-2xl font-bold text-slate-900">
+          {STEPS[step]}
+        </h2>
 
         {step === 0 && (
           <div className="mt-6 space-y-4">
@@ -175,10 +200,7 @@ export function CreateWizard({ skipPayment = false }: Props) {
         )}
 
         {step === 1 && (
-          <div className="mt-6 space-y-2">
-            <label htmlFor="reel-type" className="text-sm font-medium text-slate-700">
-              Тип ролика
-            </label>
+          <div className="mt-6">
             <select
               id="reel-type"
               value={reelType}
@@ -196,9 +218,6 @@ export function CreateWizard({ skipPayment = false }: Props) {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-slate-500">
-              От типа зависит тон сценария и стиль AI-картинок
-            </p>
           </div>
         )}
 
@@ -256,9 +275,7 @@ export function CreateWizard({ skipPayment = false }: Props) {
           </div>
         )}
 
-        {error && (
-          <p className="mt-4 text-sm text-red-600">{error}</p>
-        )}
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
         <div className="mt-8 flex gap-3">
           {step > 0 && (
@@ -298,9 +315,11 @@ export function CreateWizard({ skipPayment = false }: Props) {
         </div>
       </div>
 
-      <div className="flex items-center justify-center">
-        <PhonePreview product={product ?? undefined} />
-      </div>
+      <PipelineLog
+        productLabel={productLabel}
+        entries={logs}
+        activeMessage={activeLog}
+      />
     </div>
   );
 }

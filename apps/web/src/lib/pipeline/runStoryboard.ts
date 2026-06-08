@@ -163,6 +163,8 @@ export async function runStoryboard(
     return "storyboard_ready";
   }
 
+  await reporter.log("ищу картинки");
+
   await prisma.reelJob.update({
     where: { id: jobId },
     data: { status: "generating_images" },

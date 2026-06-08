@@ -1,4 +1,5 @@
 import {
+  appendPipelineLog,
   createInitialProgress,
   markPipelineStep,
   pipelineProgressSchema,
@@ -39,6 +40,10 @@ export function createJobProgressReporter(
     async complete(stepId: PipelineStepId) {
       const progress = await loadProgress(jobId);
       await saveProgress(jobId, markPipelineStep(progress, stepId));
+    },
+    async log(text: string) {
+      const progress = await loadProgress(jobId);
+      await saveProgress(jobId, appendPipelineLog(progress, text));
     },
   };
 }

@@ -60,14 +60,79 @@ export const PIPELINE_STEP_LABELS: Record<PipelineStepId, string> = {
   assemble_video: "Собираем видео",
 };
 
+/** Casual log lines shown in the wizard log panel (mockup style). */
+export const PIPELINE_LOG_ON_START: Partial<Record<PipelineStepId, string>> = {
+  search_marketplaces: "ищу страницы товара на маркетплейсах",
+  generate_image_1: "генерирую картинки",
+  assemble_video: "собираю видео",
+};
+
+export const PIPELINE_LOG_ON_DONE: Partial<Record<PipelineStepId, string>> = {
+  search_marketplaces: "нашёл страницы на маркетплейсах",
+  search_ozon: "нашёл на Ozon",
+  search_wildberries: "нашёл на Wildberries",
+  search_mvideo: "нашёл в М.Видео",
+  read_descriptions: "читаю описания",
+  read_reviews: "читаю отзывы",
+  extract_benefits: "выделяю преимущества",
+  write_script: "пишу сценарий",
+  generate_image_1: "картинка 1/4 готова",
+  generate_image_2: "картинка 2/4 готова",
+  generate_image_3: "картинка 3/4 готова",
+  generate_image_4: "картинка 4/4 готова",
+  assemble_video: "видео готово",
+};
+
+export const pipelineLogEntrySchema = z.object({
+  at: z.string(),
+  text: z.string(),
+});
+
+export type PipelineLogEntry = z.infer<typeof pipelineLogEntrySchema>;
+
 export const pipelineProgressSchema = z.object({
   currentStep: z.enum(PIPELINE_STEP_IDS).optional(),
   completedSteps: z.array(z.enum(PIPELINE_STEP_IDS)).default([]),
   imageProgress: z.number().int().min(0).max(4).default(0),
+  logs: z.array(pipelineLogEntrySchema).default([]),
   updatedAt: z.string().optional(),
 });
 
 export type PipelineProgress = z.infer<typeof pipelineProgressSchema>;
+
+export function appendPipelineLog(
+  progress: PipelineProgress,
+  text: string
+): PipelineProgress {
+  const logs = progress.logs ?? [];
+  if (logs[logs.length - 1]?.text === text) {
+    return pipelineProgressSchema.parse({
+      ...progress,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return pipelineProgressSchema.parse({
+    ...progress,
+    logs: [...logs, { at: new Date().toISOString(), text }],
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function logOnStart(
+  progress: PipelineProgress,
+  stepId: PipelineStepId
+): PipelineProgress {
+  const text = PIPELINE_LOG_ON_START[stepId];
+  return text ? appendPipelineLog(progress, text) : progress;
+}
+
+function logOnDone(
+  progress: PipelineProgress,
+  stepId: PipelineStepId
+): PipelineProgress {
+  const text = PIPELINE_LOG_ON_DONE[stepId];
+  return text ? appendPipelineLog(progress, text) : progress;
+}
 
 export const sceneImageSchema = z.object({
   sceneIndex: z.number().int().min(0).max(3),
@@ -85,6 +150,7 @@ export function createInitialProgress(): PipelineProgress {
   return pipelineProgressSchema.parse({
     completedSteps: [],
     imageProgress: 0,
+    logs: [],
     updatedAt: new Date().toISOString(),
   });
 }
@@ -93,8 +159,9 @@ export function setPipelineActiveStep(
   progress: PipelineProgress,
   stepId: PipelineStepId
 ): PipelineProgress {
+  const withLog = logOnStart(progress, stepId);
   return pipelineProgressSchema.parse({
-    ...progress,
+    ...withLog,
     currentStep: stepId,
     updatedAt: new Date().toISOString(),
   });
@@ -119,7 +186,10 @@ export function markPipelineStep(
             ? 4
             : progress.imageProgress;
 
+  const withLog = logOnDone(progress, stepId);
+
   return pipelineProgressSchema.parse({
+    ...withLog,
     currentStep: undefined,
     completedSteps: completed,
     imageProgress,
@@ -220,4 +290,18 @@ export function resolvePipelineStepState(
   }
 
   return "pending";
+}
+
+export function getActivePipelineLogMessage(
+  progress: PipelineProgress | null | undefined,
+  jobStatus: string
+): string | null {
+  const stepId =
+    progress?.currentStep ?? statusDefaultActiveStep(jobStatus);
+  if (!stepId) return null;
+  return (
+    PIPELINE_LOG_ON_START[stepId] ??
+    PIPELINE_STEP_LABELS[stepId] ??
+    null
+  );
 }
