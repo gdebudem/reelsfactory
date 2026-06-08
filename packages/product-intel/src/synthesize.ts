@@ -1,12 +1,16 @@
 import {
   productIntelSchema,
+  type MarketplaceListing,
   type ProductCard,
   type ProductIntel,
 } from "@reels-factory/shared";
 import OpenAI from "openai";
 import type { TavilyResult } from "./tavily";
 
-function buildIntelFromProductOnly(product: ProductCard): ProductIntel {
+function buildIntelFromProductOnly(
+  product: ProductCard,
+  marketplaceListings: MarketplaceListing[] = []
+): ProductIntel {
   const selling: string[] = [];
   for (const spec of product.specs?.slice(0, 5) ?? []) {
     selling.push(`${spec.name}: ${spec.value}`);
@@ -31,39 +35,51 @@ function buildIntelFromProductOnly(product: ProductCard): ProductIntel {
     reviewsFromPage: product.reviews,
     rankedSellingPoints: selling.slice(0, 5),
     socialProof,
-    researchSources: [product.sourceUrl],
+    marketplaceListings: marketplaceListings.length
+      ? marketplaceListings
+      : undefined,
+    researchSources: [
+      product.sourceUrl,
+      ...marketplaceListings.map((l) => l.url),
+    ].filter((u, i, a) => a.indexOf(u) === i),
   });
 }
 
 export async function synthesizeProductIntel(
   product: ProductCard,
-  searchResults: TavilyResult[]
+  searchResults: TavilyResult[],
+  marketplaceListings: MarketplaceListing[] = []
 ): Promise<ProductIntel> {
   if (!searchResults.length) {
-    return buildIntelFromProductOnly(product);
+    return buildIntelFromProductOnly(product, marketplaceListings);
   }
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
-    return buildIntelFromProductOnly(product);
+    return buildIntelFromProductOnly(product, marketplaceListings);
   }
 
   const openai = new OpenAI({ apiKey });
   const model = process.env.OPENAI_MODEL?.trim() || "gpt-4o";
 
   const system = `Ты аналитик товаров для рекламных роликов.
-Извлекай ТОЛЬКО факты из snippets и productData. Запрещено выдумывать характеристики.
-Верни JSON по схеме ProductIntel: externalSnippets (цитаты до 120 символов), marketplaceReviews (ozon/wildberries/yandex если есть), consumerPainPoints, rankedSellingPoints (топ-5 выгод), socialProof, researchSources (URL).`;
+Извлекай ТОЛЬКО факты из snippets, marketplaceListings и productData. Запрещено выдумывать характеристики.
+Приоритет: отзывы и цены с Ozon, Wildberries, М.Видео, Яндекс Маркет.
+Верни JSON: externalSnippets (цитаты до 120 символов), marketplaceReviews (platform + quote + rating), consumerPainPoints, rankedSellingPoints (топ-5 выгод), socialProof, researchSources (URL).`;
 
   const user = JSON.stringify({
     productData: {
       title: product.title,
       brand: product.brand,
+      price: product.price,
+      currency: product.currency,
       specs: product.specs?.slice(0, 15),
-      reviews: product.reviews?.slice(0, 3),
+      reviews: product.reviews?.slice(0, 5),
       pros: product.prosFromPage,
       aggregateRating: product.aggregateRating,
+      sourceUrl: product.sourceUrl,
     },
+    marketplaceListings,
     snippets: searchResults.map((r) => ({
       source: new URL(r.url).hostname,
       url: r.url,
@@ -83,7 +99,7 @@ export async function synthesizeProductIntel(
     });
 
     const content = completion.choices[0]?.message?.content;
-    if (!content) return buildIntelFromProductOnly(product);
+    if (!content) return buildIntelFromProductOnly(product, marketplaceListings);
 
     const parsed = JSON.parse(content) as Record<string, unknown>;
     return productIntelSchema.parse({
@@ -94,16 +110,20 @@ export async function synthesizeProductIntel(
       reviewsFromPage: product.reviews,
       externalSnippets: parsed.externalSnippets,
       marketplaceReviews: parsed.marketplaceReviews,
+      marketplaceListings: marketplaceListings.length
+        ? marketplaceListings
+        : undefined,
       consumerPainPoints: parsed.consumerPainPoints,
       rankedSellingPoints: parsed.rankedSellingPoints,
       socialProof: parsed.socialProof,
       researchSources: [
         product.sourceUrl,
+        ...marketplaceListings.map((l) => l.url),
         ...((parsed.researchSources as string[] | undefined) ?? []),
       ].filter((u, i, a) => a.indexOf(u) === i),
     });
   } catch (err) {
     console.warn("[product-intel] synthesize failed:", err);
-    return buildIntelFromProductOnly(product);
+    return buildIntelFromProductOnly(product, marketplaceListings);
   }
 }

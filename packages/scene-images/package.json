@@ -1,5 +1,5 @@
 {
-  "name": "@reels-factory/product-intel",
+  "name": "@reels-factory/scene-images",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
@@ -8,7 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@reels-factory/product-parser": "*",
     "@reels-factory/shared": "*",
     "openai": "^4.77.0",
     "zod": "^3.24.1"

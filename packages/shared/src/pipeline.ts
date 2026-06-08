@@ -1,6 +1,6 @@
 import type { ReelScript } from "@reels-factory/shared";
 
-export const PIPELINE_VERSION = 2;
+export const PIPELINE_VERSION = 3;
 
 export function isViralScript(script: ReelScript | null | undefined): boolean {
   if (!script) return false;

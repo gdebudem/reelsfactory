@@ -25,6 +25,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/ai-script/package.json ./packages/ai-script/
 COPY packages/product-parser/package.json ./packages/product-parser/
 COPY packages/product-intel/package.json ./packages/product-intel/
+COPY packages/scene-images/package.json ./packages/scene-images/
 COPY packages/video-templates/package.json ./packages/video-templates/
 
 RUN npm ci --legacy-peer-deps

@@ -4,7 +4,7 @@ import Redis, { type RedisOptions } from "ioredis";
 const QUEUE_NAME = "render-reel";
 
 export type QueueMode = "postgres" | "redis";
-export type JobPhase = "storyboard" | "render";
+export type JobPhase = "storyboard" | "scene_images" | "render";
 
 export function getQueueMode(): QueueMode {
   const mode = process.env.QUEUE_MODE?.trim().toLowerCase();
@@ -82,6 +82,11 @@ async function enqueuePhase(jobId: string, phase: JobPhase): Promise<void> {
     }
     throw err;
   }
+}
+
+/** Postgres: worker polls status=generating_images. Redis: push scene_images job. */
+export async function enqueueSceneImagesJob(jobId: string): Promise<void> {
+  await enqueuePhase(jobId, "scene_images");
 }
 
 /** Queue video render after user approves storyboard. Postgres: caller sets status=render_queued. */

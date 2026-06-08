@@ -1,16 +1,15 @@
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import { VIDEO_CONFIG } from "@reels-factory/video-templates";
-import { buildAssSubtitles } from "./assSubtitles.js";
 import { pickMusicTrack } from "./music.js";
-import { ASSETS_DIR, musicFileExists, resolveMusicPath } from "./ensureMusic.js";
+import { musicFileExists, resolveMusicPath } from "./ensureMusic.js";
 import { prefetchProductImages } from "./prefetchImages.js";
 import { normalizeScriptForViralRender } from "./normalizeScript.js";
+import { resolveRenderFont } from "./resolveRenderFont.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,47 +20,62 @@ const DURATION_SEC = VIDEO_CONFIG.durationInFrames / FPS;
 const XFADE_SEC = 0.25;
 const CLIP_SEC = 3.75;
 
-const FONT_BOLD = pickFontFile(
-  "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
-  "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-  "C:/Windows/Fonts/arialbd.ttf"
-);
-
-function pickFontFile(...candidates: string[]): string {
-  for (const file of candidates) {
-    if (existsSync(file)) return file;
-  }
-  throw new Error(`No font file found. Tried: ${candidates.join(", ")}`);
-}
+const TEXT_STYLE: Record<
+  string,
+  { fontSize: number; fontColor: string; y: string }
+> = {
+  hook: { fontSize: 44, fontColor: "white", y: "200" },
+  pain: { fontSize: 36, fontColor: "0xDDD6FE", y: "220" },
+  proof: { fontSize: 34, fontColor: "0xBAE6FD", y: "220" },
+  cta: { fontSize: 40, fontColor: "white", y: "h-th-140" },
+  headline: { fontSize: 44, fontColor: "white", y: "200" },
+  bullet: { fontSize: 32, fontColor: "white", y: "240" },
+  review: { fontSize: 28, fontColor: "0xBAE6FD", y: "h-th-160" },
+  subheadline: { fontSize: 30, fontColor: "0xDDD6FE", y: "220" },
+};
 
 export async function renderViralReelWithFfmpeg(
   jobId: string,
   product: ProductCard,
   script: ReelScript,
-  outputPath: string
+  outputPath: string,
+  sceneImages?: SceneImage[] | null
 ): Promise<void> {
   const viralScript = normalizeScriptForViralRender(script, product);
   const productForRender = await prefetchProductImages(product);
   const scenes = viralScript.scenes.slice(0, 4);
+  const useAiImages = (sceneImages?.length ?? 0) >= 4;
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), `reel-viral-${jobId}-`));
 
   try {
     const imagePaths: string[] = [];
     for (let i = 0; i < 4; i++) {
       const scene = scenes[i];
-      const idx = scene?.imageIndex ?? i;
-      const src =
-        productForRender.images[idx % Math.max(productForRender.images.length, 1)] ??
-        productForRender.images[0] ??
-        "";
+      const src = useAiImages
+        ? sceneImages![i]!.imageUrl
+        : (productForRender.images[
+            (scene?.imageIndex ?? i) %
+              Math.max(productForRender.images.length, 1)
+          ] ??
+          productForRender.images[0] ??
+          "");
       const imgPath = path.join(tmpDir, `scene-${i}.jpg`);
       await writeImageFile(src, imgPath);
       imagePaths.push(imgPath);
     }
 
-    await copyFile(FONT_BOLD, path.join(tmpDir, "arialbd.ttf"));
-    const assPath = path.join(tmpDir, "subs.ass");
-    await writeFile(assPath, buildAssSubtitles(viralScript), "utf8");
+    let fontPath = "";
+    if (!useAiImages) {
+      const font = resolveRenderFont();
+      fontPath = path.join(tmpDir, font.fileName);
+      await copyFile(font.sourcePath, fontPath);
+      const textScenes = scenes.filter((s) => s.text?.trim()).length;
+      console.log(
+        `[render:viral] Text overlay: font=${font.family}, scenes=${textScenes}`
+      );
+    } else {
+      console.log(`[render:viral] Using ${sceneImages!.length} AI scene images (no drawtext)`);
+    }
 
     const track = pickMusicTrack(viralScript.musicTrackId, viralScript.musicMood);
     const musicPath = resolveMusicPath(track.file);
@@ -73,7 +87,7 @@ export async function renderViralReelWithFfmpeg(
       );
     }
 
-    const filter = buildViralFilter(scenes, assPath);
+    const filter = buildViralFilter(scenes, fontPath, !useAiImages);
     // No -loop: zoompan d=frames generates clip length from a single image frame
     const args = ["-y", ...imagePaths.flatMap((p) => ["-i", p])];
 
@@ -127,7 +141,8 @@ export async function renderViralReelWithFfmpeg(
 
 function buildViralFilter(
   scenes: ReelScript["scenes"],
-  assPath: string
+  fontPath: string,
+  overlayText = true
 ): string {
   const frames = Math.round(CLIP_SEC * FPS);
   const pans = [
@@ -140,9 +155,17 @@ function buildViralFilter(
   const lines: string[] = [];
   for (let i = 0; i < 4; i++) {
     const pan = pans[i] ?? pans[0]!;
-    lines.push(
-      `[${i}:v]scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2:color=0x0f172a,format=yuv420p,${pan},format=yuv420p[v${i}]`
-    );
+    const scene = scenes[i];
+    const drawtext = overlayText ? buildDrawtextFilter(fontPath, scene) : null;
+    const filters = [
+      `scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease`,
+      `pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2:color=0x0f172a`,
+      "format=yuv420p",
+      pan,
+      ...(drawtext ? [drawtext] : []),
+      "format=yuv420p",
+    ];
+    lines.push(`[${i}:v]${filters.join(",")}[v${i}]`);
   }
 
   lines.push(
@@ -152,14 +175,49 @@ function buildViralFilter(
     `[vx1][v2]xfade=transition=fade:duration=${XFADE_SEC}:offset=${CLIP_SEC * 2 - XFADE_SEC * 2}[vx2]`
   );
   lines.push(
-    `[vx2][v3]xfade=transition=fade:duration=${XFADE_SEC}:offset=${CLIP_SEC * 3 - XFADE_SEC * 3}[vraw]`
+    `[vx2][v3]xfade=transition=fade:duration=${XFADE_SEC}:offset=${CLIP_SEC * 3 - XFADE_SEC * 3}[vout]`
   );
 
-  const assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
-  const fontsDir = path.dirname(assPath).replace(/\\/g, "/").replace(/:/g, "\\:");
-  lines.push(`[vraw]ass='${assEscaped}':fontsdir='${fontsDir}'[vout]`);
-
   return lines.join(";");
+}
+
+function buildDrawtextFilter(
+  fontPath: string,
+  scene: ReelScript["scenes"][number] | undefined
+): string | null {
+  const text = scene?.text?.trim();
+  if (!text) return null;
+
+  const style = scene?.style ?? "hook";
+  const cfg = TEXT_STYLE[style] ?? TEXT_STYLE.hook!;
+  const fontEsc = escapeFfmpegPath(fontPath);
+  const textEsc = escapeDrawtext(text.slice(0, 52));
+
+  return [
+    `drawtext=fontfile='${fontEsc}'`,
+    `text='${textEsc}'`,
+    `fontsize=${cfg.fontSize}`,
+    `fontcolor=${cfg.fontColor}`,
+    "borderw=4",
+    "bordercolor=black@0.85",
+    "shadowx=2",
+    "shadowy=2",
+    "box=1",
+    "boxcolor=black@0.35",
+    "boxborderw=18",
+    "x=(w-text_w)/2",
+    `y=${cfg.y}`,
+    "line_spacing=8",
+    "fix_bounds=1",
+  ].join(":");
+}
+
+function escapeDrawtext(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "'\\''")
+    .replace(/:/g, "\\:")
+    .replace(/%/g, "%%");
 }
 
 async function writeImageFile(src: string, dest: string): Promise<void> {
@@ -203,6 +261,10 @@ async function convertImageToJpeg(imagePath: string): Promise<void> {
   } finally {
     await rm(jpegPath, { force: true }).catch(() => undefined);
   }
+}
+
+function escapeFfmpegPath(filePath: string): string {
+  return filePath.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "'\\''");
 }
 
 function runFfmpeg(args: string[], cwd: string): Promise<void> {

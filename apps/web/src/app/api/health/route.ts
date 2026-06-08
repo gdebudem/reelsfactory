@@ -33,5 +33,6 @@ export async function GET() {
       ? process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
       : null,
     storageConfigured: hasStorageConfigured(),
+    tavilyConfigured: Boolean(process.env.TAVILY_API_KEY?.trim()),
   });
 }

@@ -21,7 +21,7 @@ export function Pricing() {
             <p className="mt-2 text-slate-600">за ролик</p>
             <ul className="mt-6 space-y-2 text-left text-sm text-slate-600">
               <li>• Вертикальное видео 9:16</li>
-              <li>• AI-сценарий и оверлеи</li>
+              <li>• 4 AI-картинки + сценарий</li>
               <li>• Скачивание MP4</li>
             </ul>
           </div>

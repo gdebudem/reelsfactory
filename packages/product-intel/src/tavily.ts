@@ -4,9 +4,17 @@ export type TavilyResult = {
   content: string;
 };
 
+export type TavilySearchOptions = {
+  include_domains?: string[];
+  exclude_domains?: string[];
+  search_depth?: "basic" | "advanced";
+  country?: string;
+};
+
 export async function tavilySearch(
   query: string,
-  maxResults = 5
+  maxResults = 5,
+  options: TavilySearchOptions = {}
 ): Promise<TavilyResult[]> {
   const apiKey = process.env.TAVILY_API_KEY?.trim();
   if (!apiKey) return [];
@@ -17,9 +25,12 @@ export async function tavilySearch(
     body: JSON.stringify({
       api_key: apiKey,
       query,
-      search_depth: "basic",
+      search_depth: options.search_depth ?? "basic",
       max_results: maxResults,
       include_answer: false,
+      include_domains: options.include_domains,
+      exclude_domains: options.exclude_domains,
+      country: options.country ?? "russia",
     }),
     signal: AbortSignal.timeout(25_000),
   });
@@ -45,14 +56,24 @@ export async function tavilySearch(
 export async function searchProductWeb(productTitle: string, brand?: string) {
   const label = brand ? `${productTitle} ${brand}` : productTitle;
   const queries = [
-    `${label} отзывы`,
-    `${label} характеристики`,
-    `${label} site:ozon.ru OR site:wildberries.ru OR site:market.yandex.ru`,
+    `${label} отзывы покупателей`,
+    `${label} характеристики обзор`,
+    `${label} site:ozon.ru OR site:wildberries.ru OR site:mvideo.ru`,
   ];
 
-  const batches = await Promise.all(
-    queries.map((q) => tavilySearch(q, 4))
-  );
+  const batches = await Promise.all([
+    tavilySearch(queries[0]!, 4, { country: "russia" }),
+    tavilySearch(queries[1]!, 4, { country: "russia" }),
+    tavilySearch(queries[2]!, 5, {
+      country: "russia",
+      include_domains: [
+        "ozon.ru",
+        "wildberries.ru",
+        "mvideo.ru",
+        "market.yandex.ru",
+      ],
+    }),
+  ]);
 
   const seen = new Set<string>();
   const merged: TavilyResult[] = [];

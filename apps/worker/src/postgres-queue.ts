@@ -2,35 +2,63 @@ import type { PrismaClient } from "@prisma/client";
 
 const POLL_MS = Number(process.env.QUEUE_POLL_MS ?? 4000);
 
-/** Worker only renders video after user approves storyboard on web. */
+type JobHandlers = {
+  onGenerateImages: (jobId: string) => Promise<void>;
+  onRender: (jobId: string) => Promise<void>;
+};
+
 export async function startPostgresQueueWorker(
   prisma: PrismaClient,
-  processRender: (jobId: string) => Promise<void>
+  handlers: JobHandlers
 ): Promise<never> {
   console.log(
-    `[worker] Postgres render queue — poll every ${POLL_MS}ms (render_queued only)`
+    `[worker] Postgres queue — poll every ${POLL_MS}ms (generating_images + render_queued)`
   );
 
   while (true) {
     try {
-      const jobId = await claimNextRenderJob(prisma);
-      if (!jobId) {
-        await sleep(POLL_MS);
+      const imageJobId = await claimJob(
+        prisma,
+        "generating_images",
+        "image_generating"
+      );
+      if (imageJobId) {
+        console.log(`[worker] Generating scene images for ${imageJobId}`);
+        try {
+          await handlers.onGenerateImages(imageJobId);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[worker] Image gen failed ${imageJobId}:`, message);
+          await prisma.reelJob.update({
+            where: { id: imageJobId },
+            data: { status: "failed", errorMessage: message },
+          });
+        }
         continue;
       }
 
-      console.log(`[worker] Rendering approved job ${jobId}`);
-      try {
-        await processRender(jobId);
-        console.log(`[worker] Done render ${jobId}`);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[worker] Failed ${jobId}:`, message);
-        await prisma.reelJob.update({
-          where: { id: jobId },
-          data: { status: "failed", errorMessage: message },
-        });
+      const renderJobId = await claimJob(
+        prisma,
+        "render_queued",
+        "rendering"
+      );
+      if (renderJobId) {
+        console.log(`[worker] Rendering approved job ${renderJobId}`);
+        try {
+          await handlers.onRender(renderJobId);
+          console.log(`[worker] Done render ${renderJobId}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[worker] Failed ${renderJobId}:`, message);
+          await prisma.reelJob.update({
+            where: { id: renderJobId },
+            data: { status: "failed", errorMessage: message },
+          });
+        }
+        continue;
       }
+
+      await sleep(POLL_MS);
     } catch (err) {
       console.error("[worker] Queue poll error:", err);
       await sleep(POLL_MS);
@@ -38,17 +66,21 @@ export async function startPostgresQueueWorker(
   }
 }
 
-async function claimNextRenderJob(prisma: PrismaClient): Promise<string | null> {
+async function claimJob(
+  prisma: PrismaClient,
+  fromStatus: string,
+  busyStatus: string
+): Promise<string | null> {
   const candidate = await prisma.reelJob.findFirst({
-    where: { status: "render_queued" },
+    where: { status: fromStatus },
     orderBy: { updatedAt: "asc" },
     select: { id: true },
   });
   if (!candidate) return null;
 
   const claimed = await prisma.reelJob.updateMany({
-    where: { id: candidate.id, status: "render_queued" },
-    data: { status: "rendering" },
+    where: { id: candidate.id, status: fromStatus },
+    data: { status: busyStatus },
   });
 
   return claimed.count === 1 ? candidate.id : null;

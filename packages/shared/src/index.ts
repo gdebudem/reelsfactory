@@ -29,12 +29,17 @@ export const JOB_STATUSES = [
   "queued",
   "researching",
   "scripting",
-  "storyboard_ready",
+  "generating_images",
+  "image_generating",
+  "images_ready",
+  "storyboard_ready", // legacy alias for images_ready
   "render_queued",
   "rendering",
   "ready",
   "failed",
 ] as const;
+
+export type JobStatus = (typeof JOB_STATUSES)[number];
 
 export const TIERS = ["basic", "premium"] as const;
 
@@ -88,6 +93,14 @@ export const marketplaceReviewSchema = z.object({
   quote: z.string(),
 });
 
+export const marketplaceListingSchema = z.object({
+  platform: z.string(),
+  url: z.string().url(),
+  title: z.string().optional(),
+  price: z.number().nullable().optional(),
+  currency: z.string().optional(),
+});
+
 export const productIntelSchema = z.object({
   productTitle: z.string(),
   brand: z.string().optional(),
@@ -96,6 +109,7 @@ export const productIntelSchema = z.object({
   reviewsFromPage: z.array(productReviewSchema).optional(),
   externalSnippets: z.array(externalSnippetSchema).optional(),
   marketplaceReviews: z.array(marketplaceReviewSchema).optional(),
+  marketplaceListings: z.array(marketplaceListingSchema).optional(),
   consumerPainPoints: z.array(z.string()).optional(),
   rankedSellingPoints: z.array(z.string()).optional(),
   socialProof: z.string().optional(),
@@ -104,6 +118,7 @@ export const productIntelSchema = z.object({
 
 export type ExternalSnippet = z.infer<typeof externalSnippetSchema>;
 export type MarketplaceReview = z.infer<typeof marketplaceReviewSchema>;
+export type MarketplaceListing = z.infer<typeof marketplaceListingSchema>;
 export type ProductIntel = z.infer<typeof productIntelSchema>;
 
 export const reelTypeSchema = z.enum([
@@ -216,3 +231,21 @@ export {
   isViralScript,
   shouldRegenerateScript,
 } from "./pipeline";
+
+export {
+  PIPELINE_STEP_IDS,
+  PIPELINE_STEP_LABELS,
+  pipelineProgressSchema,
+  sceneImageSchema,
+  sceneImagesSchema,
+  createInitialProgress,
+  setPipelineActiveStep,
+  markPipelineStep,
+  isApprovalReadyStatus,
+  isPreviewReadyStatus,
+  resolvePipelineStepState,
+  type PipelineStepId,
+  type PipelineProgress,
+  type PipelineStepState,
+  type SceneImage,
+} from "./pipeline-progress";

@@ -5,12 +5,18 @@ import { runStoryboard } from "@/lib/pipeline/runStoryboard";
 
 const STORYBOARD_STARTABLE = new Set(["draft", "paid", "failed"]);
 const STORYBOARD_DONE = new Set([
+  "images_ready",
   "storyboard_ready",
+  "generating_images",
   "render_queued",
   "rendering",
   "ready",
 ]);
-const STORYBOARD_BUSY = new Set(["researching", "scripting"]);
+const STORYBOARD_BUSY = new Set([
+  "researching",
+  "scripting",
+  "generating_images",
+]);
 
 export async function POST(
   _req: Request,

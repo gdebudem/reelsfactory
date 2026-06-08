@@ -4,6 +4,9 @@ dist
 .turbo
 .env
 .env.local
+.env.vercel
+.env.production.local
+.env.railway-sync
 *.log
 .DS_Store
 out

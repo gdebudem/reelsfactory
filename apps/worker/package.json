@@ -14,6 +14,7 @@
     "@reels-factory/ai-script": "*",
     "@reels-factory/product-intel": "*",
     "@reels-factory/product-parser": "*",
+    "@reels-factory/scene-images": "*",
     "@reels-factory/shared": "*",
     "@reels-factory/video-templates": "*",
     "@remotion/bundler": "^4.0.232",

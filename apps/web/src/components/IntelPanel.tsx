@@ -22,6 +22,55 @@ export function IntelPanel({ intel }: { intel: ProductIntel }) {
         <p className="text-sm text-emerald-700">★ {intel.socialProof}</p>
       )}
 
+      {intel.marketplaceListings && intel.marketplaceListings.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-slate-500">Маркетплейсы</p>
+          <ul className="mt-1 space-y-1">
+            {intel.marketplaceListings.slice(0, 5).map((listing) => (
+              <li key={listing.url} className="text-sm">
+                <a
+                  href={listing.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-indigo-600 hover:underline"
+                >
+                  {listing.platform}
+                </a>
+                {listing.price != null && (
+                  <span className="ml-2 text-slate-600">
+                    {Math.round(listing.price).toLocaleString("ru-RU")}{" "}
+                    {listing.currency === "USD" ? "$" : "₽"}
+                  </span>
+                )}
+                {listing.title && (
+                  <span className="block truncate text-xs text-slate-400">
+                    {listing.title}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {intel.marketplaceReviews && intel.marketplaceReviews.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-slate-500">Отзывы с площадок</p>
+          {intel.marketplaceReviews.slice(0, 2).map((r) => (
+            <blockquote
+              key={`${r.platform}-${r.quote.slice(0, 24)}`}
+              className="mt-1 border-l-2 border-emerald-300 pl-3 text-sm text-slate-600"
+            >
+              «{r.quote.slice(0, 120)}»
+              <span className="block text-xs text-slate-400">
+                {r.platform}
+                {r.rating != null ? ` · ${r.rating}/5` : ""}
+              </span>
+            </blockquote>
+          ))}
+        </div>
+      )}
+
       {intel.externalSnippets && intel.externalSnippets.length > 0 && (
         <div>
           <p className="text-xs font-medium text-slate-500">Из сети</p>
@@ -61,6 +110,9 @@ const STATUS_LABELS: Record<string, string> = {
   queued: "В очереди на раскадровку",
   researching: "ИИ изучает товар…",
   scripting: "Пишем раскадровку…",
+  generating_images: "Генерируем картинки…",
+  image_generating: "Генерируем картинки…",
+  images_ready: "Картинки готовы — проверьте",
   storyboard_ready: "Раскадровка готова",
   render_queued: "В очереди на рендер",
   rendering: "Создаём видео…",

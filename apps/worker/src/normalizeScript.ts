@@ -16,10 +16,17 @@ export function normalizeScriptForViralRender(
   }
 
   if (script.scenes.length >= 4) {
+    const fallbacks = [
+      script.headline,
+      script.subheadline,
+      script.reviewQuote ?? script.bullets?.[0] ?? script.headline,
+      script.ctaText,
+    ];
     const scenes = script.scenes.slice(0, 4).map((s, i) => ({
       ...s,
       startSec: i * 3.75,
       endSec: (i + 1) * 3.75,
+      text: s.text?.trim() || fallbacks[i] || script.headline,
       imageIndex: s.imageIndex ?? i,
       style:
         s.style ??

@@ -18,7 +18,11 @@ const STEPS = [
   "Куда ведём клиента?",
 ];
 
-export function CreateWizard() {
+type Props = {
+  skipPayment?: boolean;
+};
+
+export function CreateWizard({ skipPayment = false }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -31,24 +35,42 @@ export function CreateWizard() {
   const [customHighlight, setCustomHighlight] = useState("");
   const [ctaType, setCtaType] = useState<WizardForm["ctaType"]>("website");
   const [ctaValue, setCtaValue] = useState("");
+  const [parsedUrl, setParsedUrl] = useState<string | null>(null);
 
-  async function parseProduct() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/products/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: productUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Ошибка парсинга");
-      setProduct(data.product);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка");
-    } finally {
-      setLoading(false);
+  async function parseProduct(url: string): Promise<ProductCard> {
+    const res = await fetch("/api/products/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Ошибка парсинга");
+    return data.product as ProductCard;
+  }
+
+  async function goNext() {
+    if (step === 0) {
+      const url = productUrl.trim();
+      if (!url) return;
+
+      setLoading(true);
+      setError(null);
+      try {
+        if (!product || parsedUrl !== url) {
+          const parsed = await parseProduct(url);
+          setProduct(parsed);
+          setParsedUrl(url);
+        }
+        setStep(1);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ошибка");
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
+
+    setStep((s) => s + 1);
   }
 
   function toggleHighlight(chip: string) {
@@ -104,7 +126,7 @@ export function CreateWizard() {
   }
 
   function canNext() {
-    if (step === 0) return Boolean(product);
+    if (step === 0) return Boolean(productUrl.trim());
     if (step === 1) return Boolean(reelType);
     if (step === 2)
       return highlights.length > 0 || customHighlight.trim().length > 0;
@@ -136,90 +158,47 @@ export function CreateWizard() {
               type="url"
               placeholder="https://магазин.ru/product/..."
               value={productUrl}
-              onChange={(e) => setProductUrl(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setProductUrl(next);
+                if (parsedUrl && next.trim() !== parsedUrl) {
+                  setProduct(null);
+                  setParsedUrl(null);
+                }
+              }}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
             <p className="text-xs text-slate-500">
               Лучше работает с товарами, у которых есть отзывы в интернете
             </p>
-            <button
-              type="button"
-              onClick={parseProduct}
-              disabled={loading || !productUrl}
-              className="rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white disabled:opacity-50"
-            >
-              {loading ? "Загрузка…" : "Подтянуть товар"}
-            </button>
-            {product && (
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
-                <p className="font-semibold">{product.title}</p>
-                {product.images.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {product.images.slice(0, 5).map((img, i) => (
-                      <img
-                        key={img}
-                        src={img}
-                        alt={`Фото ${i + 1}`}
-                        className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover"
-                      />
-                    ))}
-                  </div>
-                )}
-                {product.price != null && (
-                  <p className="text-indigo-600 font-bold">
-                    {product.price} {product.currency}
-                  </p>
-                )}
-                {product.brand && (
-                  <p className="text-sm text-slate-600">Бренд: {product.brand}</p>
-                )}
-                {product.specs && product.specs.length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">
-                      Характеристики ({product.specs.length})
-                    </p>
-                    <ul className="mt-1 max-h-32 overflow-y-auto text-sm text-slate-700">
-                      {product.specs.slice(0, 6).map((s) => (
-                        <li key={`${s.name}-${s.value}`}>
-                          {s.name}: {s.value}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {product.reviews && product.reviews.length > 0 && (
-                  <p className="text-sm text-emerald-700">
-                    Отзывы на странице: {product.reviews.length}
-                    {product.aggregateRating &&
-                      ` · ★ ${product.aggregateRating.value}`}
-                  </p>
-                )}
-                {product.prosFromPage && product.prosFromPage.length > 0 && (
-                  <p className="text-xs text-slate-500">
-                    Преимущества: {product.prosFromPage.slice(0, 2).join(" · ")}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         )}
 
         {step === 1 && (
-          <div className="mt-6 grid gap-2">
-            {REEL_TYPES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setReelType(t.id)}
-                className={`rounded-xl border px-4 py-3 text-left transition ${
-                  reelType === t.id
-                    ? "border-indigo-600 bg-indigo-50 font-medium text-indigo-900"
-                    : "border-slate-200 hover:border-indigo-300"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="mt-6 space-y-2">
+            <label htmlFor="reel-type" className="text-sm font-medium text-slate-700">
+              Тип ролика
+            </label>
+            <select
+              id="reel-type"
+              value={reelType}
+              onChange={(e) =>
+                setReelType(e.target.value as WizardForm["reelType"])
+              }
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white bg-[length:1.25rem] bg-[right_1rem_center] bg-no-repeat px-4 py-3 pr-10 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+              }}
+            >
+              {REEL_TYPES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              От типа зависит тон сценария и стиль AI-картинок
+            </p>
           </div>
         )}
 
@@ -294,11 +273,11 @@ export function CreateWizard() {
           {step < 3 ? (
             <button
               type="button"
-              disabled={!canNext()}
-              onClick={() => setStep((s) => s + 1)}
+              disabled={!canNext() || loading}
+              onClick={goNext}
               className="rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white disabled:opacity-50"
             >
-              Далее
+              {loading && step === 0 ? "Загрузка…" : "Далее"}
             </button>
           ) : (
             <button
@@ -307,7 +286,13 @@ export function CreateWizard() {
               onClick={submit}
               className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 font-medium text-white disabled:opacity-50"
             >
-              {loading ? "Готовим раскадровку…" : "Сгенерировать раскадровку"}
+              {loading
+                ? skipPayment
+                  ? "Генерируем…"
+                  : "Переход к оплате…"
+                : skipPayment
+                  ? "Сгенерировать"
+                  : "Сгенерировать и оплатить"}
             </button>
           )}
         </div>

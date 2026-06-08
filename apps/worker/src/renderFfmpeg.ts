@@ -1,4 +1,4 @@
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import { renderViralReelWithFfmpeg } from "./renderFfmpegViral.js";
 
 export function shouldUseFfmpegRender(): boolean {
@@ -12,12 +12,13 @@ export async function renderReelWithFfmpeg(
   jobId: string,
   product: ProductCard,
   script: ReelScript,
-  outputPath: string
+  outputPath: string,
+  sceneImages?: SceneImage[] | null
 ): Promise<void> {
   if (script.templateId !== "viral_v1") {
     console.log(
       `[render:ffmpeg] template=${script.templateId ?? "none"} → viral_v1, job ${jobId}`
     );
   }
-  return renderViralReelWithFfmpeg(jobId, product, script, outputPath);
+  return renderViralReelWithFfmpeg(jobId, product, script, outputPath, sceneImages);
 }

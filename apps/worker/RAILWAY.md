@@ -15,6 +15,30 @@ Railpack **не подходит** для Remotion (нет `libnspr4`).
 
 Если сборка падает — **View logs** у failed deploy, строка с `ERROR`.
 
+## Crash: `DATABASE_URL is not set`
+
+Worker exits immediately if `DATABASE_URL` is missing in **Railway Variables** (not Vercel).
+
+**Fix (Railway dashboard, ~1 min):**
+
+1. [railway.app](https://railway.app) → project **reelsfactory** → worker service → **Variables**
+2. **New variable** → `DATABASE_URL` → paste the **same Neon URL** as in Vercel (Settings → Environment Variables → Production → `DATABASE_URL` → reveal)
+3. Also add `OPENAI_API_KEY` (copy from Vercel) and `S3_*` (R2) if missing
+4. **Redeploy** (or wait for auto-restart)
+
+**Success in logs:**
+
+```text
+[worker] Postgres queue
+[worker] Render engine: ffmpeg viral_v1
+```
+
+**CLI sync (after `npx railway login` + `npx railway link`):**
+
+```powershell
+powershell -File scripts/sync-railway-env.ps1
+```
+
 ## Variables
 
 | Variable | Required |

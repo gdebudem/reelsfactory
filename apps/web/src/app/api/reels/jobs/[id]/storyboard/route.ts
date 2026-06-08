@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { envProblemResponse, hasDatabaseConfigured } from "@/lib/env";
+import { enqueueSceneImagesJob } from "@/lib/queue";
 import { runStoryboard } from "@/lib/pipeline/runStoryboard";
 
 export const maxDuration = 60;
 
-const STORYBOARD_DONE = new Set(["storyboard_ready", "render_queued", "rendering", "ready"]);
-const STORYBOARD_BUSY = new Set(["researching", "scripting"]);
+const STORYBOARD_DONE = new Set([
+  "images_ready",
+  "storyboard_ready",
+  "generating_images",
+  "render_queued",
+  "rendering",
+  "ready",
+]);
+const STORYBOARD_BUSY = new Set([
+  "researching",
+  "scripting",
+  "generating_images",
+]);
 
 export async function POST(
   _req: Request,
@@ -53,6 +65,9 @@ export async function POST(
 
   try {
     const status = await runStoryboard(id);
+    if (status === "generating_images") {
+      await enqueueSceneImagesJob(id);
+    }
     return NextResponse.json({ ok: true, status });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка раскадровки";

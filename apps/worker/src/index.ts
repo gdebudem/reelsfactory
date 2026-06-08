@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
 import { PrismaClient } from "@prisma/client";
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import {
   isProductParsePoor,
   parseProductUrl,
@@ -9,6 +9,8 @@ import {
 import { ensureMusicAssets } from "./ensureMusic.js";
 import { getRenderMode, renderReelToS3 } from "./render.js";
 import { hasStorageConfigured } from "./storage.js";
+import { processGenerateSceneImages } from "./generateSceneImages.js";
+import { touchJobProgress } from "./jobProgress.js";
 import { startPostgresQueueWorker } from "./postgres-queue.js";
 
 const prisma = new PrismaClient();
@@ -95,8 +97,11 @@ async function processRender(jobId: string) {
     data: { status: "rendering" },
   });
 
-  const videoUrl = await renderReelToS3(jobId, product, script);
+  await touchJobProgress(prisma, jobId, "start", "assemble_video");
 
+  const sceneImages = job.sceneImagesJson as SceneImage[] | null;
+  const videoUrl = await renderReelToS3(jobId, product, script, sceneImages);
+  await touchJobProgress(prisma, jobId, "complete", "assemble_video");
   await prisma.reelJob.update({
     where: { id: jobId },
     data: { status: "ready", videoUrl },
@@ -145,12 +150,17 @@ if (queueMode === "redis" && process.env.REDIS_URL) {
     async (job) => {
       const jobId = job.data.jobId as string;
       const phase = job.data.phase as string | undefined;
-      if (phase !== "render") {
-        console.log(`[worker] Skip non-render job ${jobId} phase=${phase ?? "none"}`);
-        return;
-      }
-      console.log(`[worker] Rendering reel job ${jobId}`);
       try {
+        if (phase === "scene_images") {
+          console.log(`[worker] Generating scene images for ${jobId}`);
+          await processGenerateSceneImages(prisma, jobId);
+          return;
+        }
+        if (phase !== "render") {
+          console.log(`[worker] Skip job ${jobId} phase=${phase ?? "none"}`);
+          return;
+        }
+        console.log(`[worker] Rendering reel job ${jobId}`);
         await processRender(jobId);
         console.log(`[worker] Done render ${jobId}`);
       } catch (err) {
@@ -178,6 +188,9 @@ if (queueMode === "redis" && process.env.REDIS_URL) {
   });
 } else {
   void logWorkerReady().then(() =>
-    startPostgresQueueWorker(prisma, processRender)
+    startPostgresQueueWorker(prisma, {
+      onGenerateImages: (jobId) => processGenerateSceneImages(prisma, jobId),
+      onRender: processRender,
+    })
   );
 }

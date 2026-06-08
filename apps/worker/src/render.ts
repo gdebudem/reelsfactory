@@ -1,6 +1,6 @@
 import path from "path";
 import { fileURLToPath } from "url";
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import fs from "fs";
 import { renderReelWithFfmpeg, shouldUseFfmpegRender } from "./renderFfmpeg.js";
 import { hasStorageConfigured, uploadToStorage } from "./storage.js";
@@ -28,7 +28,8 @@ async function renderMockPlaceholder(jobId: string): Promise<string> {
 export async function renderReelToS3(
   jobId: string,
   product: ProductCard,
-  script: ReelScript
+  script: ReelScript,
+  sceneImages?: SceneImage[] | null
 ): Promise<string> {
   const mode = getRenderMode();
 
@@ -50,7 +51,7 @@ export async function renderReelToS3(
 
   if (shouldUseFfmpegRender()) {
     console.log("[render] Engine: ffmpeg (Railway / LOW_MEMORY)");
-    await renderReelWithFfmpeg(jobId, product, script, outputPath);
+    await renderReelWithFfmpeg(jobId, product, script, outputPath, sceneImages);
     const key = `videos/${jobId}.mp4`;
     const body = fs.readFileSync(outputPath);
     try {

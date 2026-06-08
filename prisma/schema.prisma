@@ -68,6 +68,8 @@ model ReelJob {
   ctaValue        String?
   scriptJson        Json?
   productIntelJson  Json?
+  sceneImagesJson   Json?
+  progressJson      Json?
   status            String    @default("draft")
   videoUrl        String?
   errorMessage    String?

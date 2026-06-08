@@ -4,10 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhonePreview } from "./PhonePreview";
 import { ScriptPanel } from "./ScriptPanel";
+import { GeneratedScenesPanel } from "./GeneratedScenesPanel";
 import { StoryboardPanel } from "./StoryboardPanel";
 import { IntelPanel, jobStatusLabel } from "./IntelPanel";
+import { PipelineChecklist } from "./PipelineChecklist";
 import { isDemoVideoUrl } from "@/lib/video";
-import type { ProductCard, ProductIntel, ReelScript } from "@reels-factory/shared";
+import {
+  isPreviewReadyStatus,
+  type PipelineProgress,
+  type ProductCard,
+  type ProductIntel,
+  type ReelScript,
+  type SceneImage,
+} from "@reels-factory/shared";
 
 type Job = {
   id: string;
@@ -17,11 +26,38 @@ type Job = {
   productJson: ProductCard;
   productIntelJson: ProductIntel | null;
   scriptJson: ReelScript | null;
+  sceneImagesJson: SceneImage[] | null;
+  progressJson: PipelineProgress | null;
 };
 
 const STORYBOARD_TRIGGER = new Set(["paid", "failed", "draft"]);
-const STORYBOARD_IN_PROGRESS = new Set(["researching", "scripting"]);
+const STORYBOARD_IN_PROGRESS = new Set([
+  "paid",
+  "queued",
+  "researching",
+  "scripting",
+  "generating_images",
+  "image_generating",
+]);
 const RENDER_IN_PROGRESS = new Set(["render_queued", "rendering"]);
+const POLL_MS_ACTIVE = 1500;
+const POLL_MS_IDLE = 3000;
+
+function shouldKeepPolling(status: string, renderStarted: boolean): boolean {
+  if (status === "ready" || status === "failed") return false;
+  if (isPreviewReadyStatus(status) && !renderStarted) return false;
+  return true;
+}
+
+function pollInterval(status: string): number {
+  if (
+    STORYBOARD_IN_PROGRESS.has(status) ||
+    RENDER_IN_PROGRESS.has(status)
+  ) {
+    return POLL_MS_ACTIVE;
+  }
+  return POLL_MS_IDLE;
+}
 
 export function JobProgress({ jobId }: { jobId: string }) {
   const router = useRouter();
@@ -30,24 +66,38 @@ export function JobProgress({ jobId }: { jobId: string }) {
   const [renderStarted, setRenderStarted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const storyboardRequested = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let active = true;
 
     async function poll() {
-      const res = await fetch(`/api/reels/jobs/${jobId}`);
-      const data = await res.json();
-      if (!active) return;
-      setJob(data.job);
-      const status = data.job.status as string;
-      if (status === "ready" || status === "failed") return;
-      if (status === "storyboard_ready" && !renderStarted) return;
-      setTimeout(poll, 2500);
+      try {
+        const res = await fetch(`/api/reels/jobs/${jobId}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (!active) return;
+
+        if (data.job) {
+          setJob(data.job);
+        }
+
+        const status = (data.job?.status as string) ?? "";
+        if (!shouldKeepPolling(status, renderStarted)) return;
+
+        pollTimerRef.current = setTimeout(poll, pollInterval(status));
+      } catch {
+        if (!active) return;
+        pollTimerRef.current = setTimeout(poll, POLL_MS_IDLE);
+      }
     }
 
     poll();
+
     return () => {
       active = false;
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
   }, [jobId, renderStarted]);
 
@@ -55,7 +105,9 @@ export function JobProgress({ jobId }: { jobId: string }) {
     if (storyboardRequested.current) return;
 
     async function triggerStoryboard() {
-      const statusRes = await fetch(`/api/reels/jobs/${jobId}`);
+      const statusRes = await fetch(`/api/reels/jobs/${jobId}`, {
+        cache: "no-store",
+      });
       const statusData = await statusRes.json();
       const status = statusData.job?.status as string | undefined;
       if (!status || !STORYBOARD_TRIGGER.has(status)) return;
@@ -63,7 +115,9 @@ export function JobProgress({ jobId }: { jobId: string }) {
       storyboardRequested.current = true;
       await fetch(`/api/reels/jobs/${jobId}/storyboard`, { method: "POST" });
 
-      const refresh = await fetch(`/api/reels/jobs/${jobId}`);
+      const refresh = await fetch(`/api/reels/jobs/${jobId}`, {
+        cache: "no-store",
+      });
       const refreshData = await refresh.json();
       if (refreshData.job) setJob(refreshData.job);
     }
@@ -108,21 +162,27 @@ export function JobProgress({ jobId }: { jobId: string }) {
 
   if (job.status === "failed") {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-        <p className="font-semibold text-red-800">Ошибка</p>
-        <p className="mt-2 text-sm text-red-600">{job.errorMessage}</p>
-        <button
-          type="button"
-          onClick={() => router.push("/create")}
-          className="mt-4 text-indigo-600 underline"
-        >
-          Попробовать снова
-        </button>
+      <div className="space-y-6">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="font-semibold text-red-800">Ошибка</p>
+          <p className="mt-2 text-sm text-red-600">{job.errorMessage}</p>
+          <button
+            type="button"
+            onClick={() => router.push("/create")}
+            className="mt-4 text-indigo-600 underline"
+          >
+            Попробовать снова
+          </button>
+        </div>
+        <PipelineChecklist
+          progress={job.progressJson}
+          jobStatus={job.status}
+        />
       </div>
     );
   }
 
-  if (job.status === "storyboard_ready") {
+  if (isPreviewReadyStatus(job.status)) {
     if (!script || !product) {
       return (
         <div className="py-12 text-center">
@@ -132,20 +192,35 @@ export function JobProgress({ jobId }: { jobId: string }) {
       );
     }
 
+    const hasAiImages = (job.sceneImagesJson?.length ?? 0) >= 4;
+
     return (
       <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-violet-900">
-              Раскадровка готова — проверьте сценарий
+              {hasAiImages
+                ? "Картинки готовы — проверьте сцены"
+                : "Раскадровка готова — проверьте сценарий"}
             </h2>
             <p className="mt-2 text-slate-600">
-              Ниже 4 сцены с текстом для ролика. Видео начнёт генерироваться
-              только после вашего подтверждения.
+              {hasAiImages
+                ? "Ниже 4 сгенерированные картинки. Видео соберём только после подтверждения."
+                : "Ниже 4 сцены с текстом. Видео начнёт генерироваться только после подтверждения."}
             </p>
           </div>
 
-          <StoryboardPanel product={product} script={script} />
+          <PipelineChecklist
+            progress={job.progressJson}
+            jobStatus={job.status}
+            compact
+          />
+
+          {hasAiImages && job.sceneImagesJson ? (
+            <GeneratedScenesPanel scenes={job.sceneImagesJson} />
+          ) : (
+            <StoryboardPanel product={product} script={script} />
+          )}
           {intel && <IntelPanel intel={intel} />}
           <ScriptPanel script={script} />
 
@@ -228,6 +303,13 @@ export function JobProgress({ jobId }: { jobId: string }) {
               Создать ещё
             </button>
           </div>
+
+          <PipelineChecklist
+            progress={job.progressJson}
+            jobStatus={job.status}
+            compact
+          />
+
           {script && <ScriptPanel script={script} />}
           {intel && <IntelPanel intel={intel} />}
         </div>
@@ -242,40 +324,41 @@ export function JobProgress({ jobId }: { jobId: string }) {
   }
 
   const isRendering = RENDER_IN_PROGRESS.has(job.status);
-  const isStoryboarding =
-    STORYBOARD_IN_PROGRESS.has(job.status) || job.status === "paid";
+  const isStoryboarding = STORYBOARD_IN_PROGRESS.has(job.status);
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
       <div className="space-y-6">
         <div className="py-6 lg:py-0">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600 lg:mx-0" />
-          <h2 className="mt-6 text-2xl font-bold">
-            {isRendering ? "Создаём видео…" : "Готовим раскадровку…"}
+          <h2 className="text-2xl font-bold">
+            {isRendering ? "Создаём видео…" : "Готовим ваш ролик…"}
           </h2>
           <p className="mt-2 text-slate-600">
             {isRendering
-              ? "Обычно ~1–2 минуты"
-              : "ИИ изучает товар и пишет сценарий — видео пока не создаётся"}
+              ? "Склеиваем картинки и музыку — обычно ~1–2 минуты"
+              : "ИИ ищет товар на маркетплейсах, пишет сценарий и готовит картинки"}
           </p>
           <p className="mt-4 text-sm font-medium text-indigo-700">
             {jobStatusLabel(job.status)}
           </p>
         </div>
-        {intel ? (
-          <IntelPanel intel={intel} />
-        ) : isStoryboarding ? (
-          <p className="text-sm text-slate-500">
-            ИИ ищет отзывы и упоминания товара в интернете…
-          </p>
+
+        <PipelineChecklist
+          progress={job.progressJson}
+          jobStatus={job.status}
+        />
+
+        {intel ? <IntelPanel intel={intel} /> : null}
+        {(job.sceneImagesJson?.length ?? 0) >= 4 ? (
+          <GeneratedScenesPanel scenes={job.sceneImagesJson!} />
         ) : null}
         {script && product ? (
           <>
-            <StoryboardPanel product={product} script={script} />
+            {(job.sceneImagesJson?.length ?? 0) < 4 ? (
+              <StoryboardPanel product={product} script={script} />
+            ) : null}
             <ScriptPanel script={script} />
           </>
-        ) : isStoryboarding ? (
-          <p className="text-sm text-slate-500">Пишем сценарий по сценам…</p>
         ) : null}
       </div>
       <div className="flex justify-center lg:justify-end">

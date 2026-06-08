@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isApprovalReadyStatus } from "@reels-factory/shared";
 import { enqueueRenderJob, getQueueMode } from "@/lib/queue";
 import { prisma } from "@/lib/prisma";
 import {
@@ -34,7 +35,7 @@ export async function POST(
     return NextResponse.json({ ok: true, status: "ready" });
   }
 
-  if (job.status !== "storyboard_ready") {
+  if (!isApprovalReadyStatus(job.status)) {
     return NextResponse.json(
       {
         error: "Раскадровка ещё не готова",
