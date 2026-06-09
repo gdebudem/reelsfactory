@@ -1,4 +1,8 @@
-import type { ProductCard, ProductIntel } from "@reels-factory/shared";
+import type {
+  ProductCard,
+  ProductIntel,
+  PromptOverrides,
+} from "@reels-factory/shared";
 import { discoverMarketplaceUrls } from "./discover";
 import { fetchMarketplaceProducts } from "./merge-product";
 import type { ResearchProgressReporter } from "./progress";
@@ -18,7 +22,8 @@ export type ProductResearchResult = {
 
 export async function buildProductIntel(
   product: ProductCard,
-  reporter: ResearchProgressReporter = noopReporter
+  reporter: ResearchProgressReporter = noopReporter,
+  promptOverrides?: PromptOverrides
 ): Promise<ProductResearchResult> {
   const tavilyMode = getTavilyMode();
   console.log(
@@ -44,7 +49,8 @@ export async function buildProductIntel(
     enriched,
     searchResults,
     marketplaceListings,
-    reporter
+    reporter,
+    promptOverrides
   );
   await reporter.complete("extract_benefits");
 

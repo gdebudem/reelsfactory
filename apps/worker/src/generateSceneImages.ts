@@ -10,6 +10,7 @@ import {
   ensureWorkerServiceDiagnostics,
   touchJobProgress,
 } from "./jobProgress.js";
+import { loadPromptOverrides } from "./prompt-overrides.js";
 import { uploadToStorage } from "./storage.js";
 
 const IMAGE_STEPS: PipelineStepId[] = [
@@ -43,6 +44,8 @@ export async function processGenerateSceneImages(
   await ensureWorkerServiceDiagnostics(prisma, jobId);
   await appendJobLog(prisma, jobId, "worker · генерация 4 AI-картинок");
 
+  const promptOverrides = await loadPromptOverrides(prisma);
+
   const { scenes: sceneImages, usedProductPhotoFallback, fallbackReason } =
     await generateSceneImages(
       jobId,
@@ -62,7 +65,8 @@ export async function processGenerateSceneImages(
             mode: meta.mode,
           });
         }
-      }
+      },
+      promptOverrides
     );
 
   if (usedProductPhotoFallback && fallbackReason) {

@@ -1,4 +1,9 @@
-import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
+import type {
+  ProductCard,
+  PromptOverrides,
+  ReelScript,
+  SceneImage,
+} from "@reels-factory/shared";
 import { sceneImagesSchema } from "@reels-factory/shared";
 import { generateSceneImageBuffer } from "./generate.js";
 import {
@@ -81,7 +86,8 @@ export async function generateSceneImages(
   product: ProductCard,
   script: ReelScript,
   upload: SceneImageUploader,
-  onProgress?: SceneImageProgress
+  onProgress?: SceneImageProgress,
+  promptOverrides?: PromptOverrides
 ): Promise<GenerateSceneImagesResult> {
   const scenes = script.scenes.slice(0, 4);
   if (scenes.length < 4) {
@@ -129,6 +135,7 @@ export async function generateSceneImages(
         scene,
         sceneIndex: i,
         referenceImageUrl,
+        promptOverrides,
       }));
     } catch (err) {
       if (isOpenAiCapacityError(err)) {
@@ -161,7 +168,13 @@ export async function generateSceneImages(
       imageUrl = `data:image/png;base64,${buffer.toString("base64")}`;
     }
 
-    const promptPreview = buildSceneImagePrompt(product, script, scene, i);
+    const promptPreview = buildSceneImagePrompt(
+      product,
+      script,
+      scene,
+      i,
+      promptOverrides
+    );
 
     results.push({
       sceneIndex: i,

@@ -229,6 +229,20 @@ export const PRICING = {
 } as const;
 
 export {
+  PIPELINE_PROMPT_IDS,
+  PIPELINE_PROMPT_DEFINITIONS,
+  promptOverridesSchema,
+  getDefaultPromptContent,
+  resolvePromptText,
+  listPipelinePrompts,
+  normalizePromptOverrides,
+  type PipelinePromptId,
+  type PipelinePromptDefinition,
+  type PipelinePromptView,
+  type PromptOverrides,
+} from "./pipeline-prompts";
+
+export {
   PIPELINE_VERSION,
   isViralScript,
   shouldRegenerateScript,

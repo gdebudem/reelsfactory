@@ -19,6 +19,7 @@ import { buildProductIntel } from "@reels-factory/product-intel";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { loadPromptOverrides } from "@/lib/prompt-overrides";
 import { createJobProgressReporter } from "./progress";
 import { applyWebServiceDiagnostics } from "./service-diagnostics";
 
@@ -30,6 +31,7 @@ export async function runStoryboard(
 
   let product = job.productJson as ProductCard;
   const reporter = createJobProgressReporter(jobId);
+  const promptOverrides = await loadPromptOverrides();
 
   let intel = job.productIntelJson as ProductIntel | null;
   const needsIntel =
@@ -50,7 +52,11 @@ export async function runStoryboard(
       },
     });
 
-    const research = await buildProductIntel(product, reporter);
+    const research = await buildProductIntel(
+      product,
+      reporter,
+      promptOverrides
+    );
     intel = research.intel;
     product = research.product;
     await prisma.reelJob.update({
@@ -68,16 +74,19 @@ export async function runStoryboard(
     await reporter.start("write_script");
     await reporter.log(`OpenAI · модель ${getOpenAiModel()} · пишу сценарий`);
 
-    const result = await generateReelScript({
-      product,
-      productIntel: intel ?? undefined,
-      reelType: job.reelType as z.infer<typeof reelTypeSchema>,
-      highlights: job.highlights,
-      customHighlight: job.customHighlight ?? undefined,
-      ctaType: job.ctaType as z.infer<typeof ctaTypeSchema>,
-      ctaValue: job.ctaValue ?? undefined,
-      tier: job.tier as "basic" | "premium",
-    });
+    const result = await generateReelScript(
+      {
+        product,
+        productIntel: intel ?? undefined,
+        reelType: job.reelType as z.infer<typeof reelTypeSchema>,
+        highlights: job.highlights,
+        customHighlight: job.customHighlight ?? undefined,
+        ctaType: job.ctaType as z.infer<typeof ctaTypeSchema>,
+        ctaValue: job.ctaValue ?? undefined,
+        tier: job.tier as "basic" | "premium",
+      },
+      promptOverrides
+    );
 
     if (result.usage) {
       await reporter.logUsage(result.usage);

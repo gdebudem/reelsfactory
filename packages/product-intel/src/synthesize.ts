@@ -3,9 +3,11 @@ import {
   isOpenAiCapacityError,
   OPENAI_BILLING_LOG_HINT,
   productIntelSchema,
+  resolvePromptText,
   type MarketplaceListing,
   type ProductCard,
   type ProductIntel,
+  type PromptOverrides,
 } from "@reels-factory/shared";
 import OpenAI from "openai";
 import type { TavilyResult } from "./tavily";
@@ -54,7 +56,8 @@ export async function synthesizeProductIntel(
   product: ProductCard,
   searchResults: TavilyResult[],
   marketplaceListings: MarketplaceListing[] = [],
-  reporter: ResearchProgressReporter = noopReporter
+  reporter: ResearchProgressReporter = noopReporter,
+  promptOverrides?: PromptOverrides
 ): Promise<ProductIntel> {
   if (!searchResults.length) {
     return buildIntelFromProductOnly(product, marketplaceListings);
@@ -68,10 +71,7 @@ export async function synthesizeProductIntel(
   const openai = new OpenAI({ apiKey });
   const model = process.env.OPENAI_MODEL?.trim() || "gpt-4o";
 
-  const system = `Ты аналитик товаров для рекламных роликов.
-Извлекай ТОЛЬКО факты из snippets, marketplaceListings и productData. Запрещено выдумывать характеристики.
-Приоритет: отзывы и цены с Ozon, Wildberries, М.Видео, Яндекс Маркет.
-Верни JSON: externalSnippets (цитаты до 120 символов), marketplaceReviews (platform + quote + rating), consumerPainPoints, rankedSellingPoints (топ-5 выгод), socialProof, researchSources (URL).`;
+  const system = resolvePromptText("intel_system", promptOverrides);
 
   const user = JSON.stringify({
     productData: {

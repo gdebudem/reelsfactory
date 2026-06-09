@@ -80,6 +80,12 @@ model ReelJob {
   updatedAt       DateTime  @updatedAt
 }
 
+model SiteSettings {
+  id          String   @id @default("default")
+  promptsJson Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+}
+
 model Payment {
   id              String   @id @default(cuid())
   reelJobId       String

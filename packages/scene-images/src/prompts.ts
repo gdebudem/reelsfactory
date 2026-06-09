@@ -1,51 +1,7 @@
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type { ProductCard, ReelScript, PromptOverrides } from "@reels-factory/shared";
+import { resolvePromptText } from "@reels-factory/shared";
 
 type MusicMood = "energetic" | "trust" | "premium";
-
-const MOOD_ART: Record<
-  MusicMood,
-  { palette: string; lighting: string; typography: string }
-> = {
-  energetic: {
-    palette:
-      "deep indigo (#1e1b4b) flowing into electric violet (#7c3aed), hot coral accent (#fb7185)",
-    lighting:
-      "crisp studio key light, vibrant rim glow, high-contrast TikTok commercial energy",
-    typography:
-      "bold geometric sans-serif Cyrillic, white with soft violet glow, kinetic poster style",
-  },
-  trust: {
-    palette:
-      "soft navy (#0f172a) to calm teal (#0d9488), warm off-white text, subtle grain",
-    lighting:
-      "diffused natural daylight, clean trustworthy e-commerce photography",
-    typography:
-      "friendly rounded sans-serif Cyrillic, high readability, calm authority",
-  },
-  premium: {
-    palette:
-      "charcoal black to champagne gold (#d4af37), subtle marble and velvet texture",
-    lighting:
-      "luxury catalog lighting, soft falloff, premium brand campaign aesthetic",
-    typography:
-      "elegant condensed sans-serif Cyrillic, gold and ivory, high-end retail ad",
-  },
-};
-
-const SCENE_BLUEPRINTS: Record<string, string> = {
-  hook: `FRAME ROLE: Viral Reels HOOK — scroll-stopping first frame.
-COMPOSITION: Product hero in lower 45%, headline in upper third, generous safe margins (8%).
-MOOD: Pattern interrupt, curiosity, “stop scrolling” energy.`,
-  pain: `FRAME ROLE: PAIN — empathize with buyer frustration.
-COMPOSITION: Product smaller (30%), emotional headline dominant, moody negative space.
-MOOD: Relatable problem, tension before solution, cinematic desaturation.`,
-  proof: `FRAME ROLE: PROOF — trust and social validation.
-COMPOSITION: Product detail or hero 40%, proof line as quote/stat badge, bright confident layout.
-MOOD: Credibility, relief, “this works” confidence.`,
-  cta: `FRAME ROLE: CTA — conversion and urgency.
-COMPOSITION: Product + price block, prominent CTA strip at bottom third, offer hierarchy.
-MOOD: Urgency, clarity, ready to buy.`,
-};
 
 function formatPrice(product: ProductCard): string {
   if (product.price == null) return "";
@@ -55,17 +11,39 @@ function formatPrice(product: ProductCard): string {
 
 export function buildVisualSeriesBrief(
   script: ReelScript,
-  product: ProductCard
+  product: ProductCard,
+  overrides?: PromptOverrides
 ): string {
   const mood = (script.musicMood ?? "energetic") as MusicMood;
-  const art = MOOD_ART[mood] ?? MOOD_ART.energetic;
+  const paletteId =
+    mood === "trust"
+      ? "scene_mood_trust_palette"
+      : mood === "premium"
+        ? "scene_mood_premium_palette"
+        : "scene_mood_energetic_palette";
+  const lightingId =
+    mood === "trust"
+      ? "scene_mood_trust_lighting"
+      : mood === "premium"
+        ? "scene_mood_premium_lighting"
+        : "scene_mood_energetic_lighting";
+  const typographyId =
+    mood === "trust"
+      ? "scene_mood_trust_typography"
+      : mood === "premium"
+        ? "scene_mood_premium_typography"
+        : "scene_mood_energetic_typography";
+
+  const artPalette = resolvePromptText(paletteId, overrides);
+  const artLighting = resolvePromptText(lightingId, overrides);
+  const artTypography = resolvePromptText(typographyId, overrides);
 
   return [
     "VISUAL SERIES (keep identical look across all 4 frames):",
     `Mood: ${mood}.`,
-    `Palette: ${art.palette}.`,
-    `Lighting: ${art.lighting}.`,
-    `Typography system: ${art.typography}.`,
+    `Palette: ${artPalette}.`,
+    `Lighting: ${artLighting}.`,
+    `Typography system: ${artTypography}.`,
     product.brand ? `Brand to respect: ${product.brand}.` : "",
     "Same font family, margin system, and color grading on every frame.",
   ]
@@ -73,45 +51,66 @@ export function buildVisualSeriesBrief(
     .join(" ");
 }
 
+function getBlueprint(
+  style: string,
+  overrides?: PromptOverrides
+): string {
+  const id =
+    style === "pain"
+      ? "scene_blueprint_pain"
+      : style === "proof"
+        ? "scene_blueprint_proof"
+        : style === "cta"
+          ? "scene_blueprint_cta"
+          : "scene_blueprint_hook";
+  return resolvePromptText(id, overrides);
+}
+
 export function buildSceneImagePrompt(
   product: ProductCard,
   script: ReelScript,
   scene: ReelScript["scenes"][number],
-  sceneIndex: number
+  sceneIndex: number,
+  overrides?: PromptOverrides
 ): string {
   const style = scene.style ?? "hook";
-  const blueprint = SCENE_BLUEPRINTS[style] ?? SCENE_BLUEPRINTS.hook!;
+  const blueprint = getBlueprint(style, overrides);
   const price = formatPrice(product);
   const emphasis = scene.emphasis?.trim();
 
+  const subject = resolvePromptText("scene_subject", overrides, {
+    product_title: product.title,
+    brand_line: product.brand ? `Brand: ${product.brand}.` : "",
+    price_line: price ? `Price to show if relevant: ${price}.` : "",
+  });
+
+  const textRules = resolvePromptText("scene_text_rules", overrides, {
+    scene_text: scene.text,
+    emphasis_line: emphasis
+      ? `Emphasis line (smaller, optional): "${emphasis}".`
+      : "",
+  });
+
   return [
-    "TYPE: Award-winning Russian social commerce static ad, 9:16 vertical mobile screen, ultra high-end DTC creative.",
-    buildVisualSeriesBrief(script, product),
+    resolvePromptText("scene_type_line", overrides),
+    buildVisualSeriesBrief(script, product, overrides),
     blueprint,
     `Scene ${sceneIndex + 1} of 4 (${style}).`,
     "",
     "BACKGROUND:",
-    "Premium gradient studio backdrop, subtle depth, no clutter, magazine-quality color grading.",
+    resolvePromptText("scene_background", overrides),
     "",
     "SUBJECT:",
-    `Photorealistic product: "${product.title}".`,
-    product.brand ? `Brand: ${product.brand}.` : "",
-    price ? `Price to show if relevant: ${price}.` : "",
-    "Product must look sharp, realistic, desirable — studio product photography quality.",
+    subject,
     "",
     "ON-IMAGE TEXT (Russian, exact wording, large and perfectly legible on phone):",
-    `"${scene.text}"`,
-    emphasis ? `Emphasis line (smaller, optional): "${emphasis}".` : "",
-    "Spell Cyrillic correctly. No English UI. No random extra words.",
+    textRules,
     "",
     "COMPOSITION:",
-    "Rule of thirds, professional ad layout, 8% safe margins, text never cropped.",
+    resolvePromptText("scene_composition", overrides),
     "",
     "CONSTRAINTS:",
-    "Photorealistic only. No watermarks. No logos except product brand.",
-    "No blurry text, no distorted product, no cheap clip art, no stock-photo feel.",
-    "No misspelled Russian, no gibberish letters, no duplicate headlines.",
-    "Output must look like a $5000 agency static ad frame, not AI slop.",
+    resolvePromptText("scene_constraints", overrides),
   ]
     .filter(Boolean)
     .join("\n");
@@ -121,12 +120,17 @@ export function buildReferenceEditPrompt(
   product: ProductCard,
   script: ReelScript,
   scene: ReelScript["scenes"][number],
-  sceneIndex: number
+  sceneIndex: number,
+  overrides?: PromptOverrides
 ): string {
-  const base = buildSceneImagePrompt(product, script, scene, sceneIndex);
-  return [
-    "Use the attached product photo as the hero subject. Preserve product shape, colors, and branding accurately.",
-    "Place it inside a new premium ad environment — do not replace the product with a generic lookalike.",
-    base,
-  ].join("\n");
+  const base = buildSceneImagePrompt(
+    product,
+    script,
+    scene,
+    sceneIndex,
+    overrides
+  );
+  return [resolvePromptText("scene_reference_prefix", overrides), base].join(
+    "\n"
+  );
 }

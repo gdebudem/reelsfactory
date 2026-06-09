@@ -9,7 +9,11 @@ import {
   buildReferenceEditPrompt,
   buildSceneImagePrompt,
 } from "./prompts.js";
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type {
+  ProductCard,
+  PromptOverrides,
+  ReelScript,
+} from "@reels-factory/shared";
 
 const GPT_IMAGE_RE = /^(gpt-image|chatgpt-image)/i;
 
@@ -133,6 +137,7 @@ export type SceneGenerationInput = {
   scene: ReelScript["scenes"][number];
   sceneIndex: number;
   referenceImageUrl?: string;
+  promptOverrides?: PromptOverrides;
 };
 
 export type SceneImageGenerationMeta = {
@@ -152,7 +157,8 @@ export async function generateSceneImageBuffer(
 
   const openai = new OpenAI({ apiKey });
   const model = getImageModel();
-  const { product, script, scene, sceneIndex, referenceImageUrl } = input;
+  const { product, script, scene, sceneIndex, referenceImageUrl, promptOverrides } =
+    input;
 
   const referenceBuf =
     useReferenceImages() &&
@@ -166,7 +172,8 @@ export async function generateSceneImageBuffer(
       product,
       script,
       scene,
-      sceneIndex
+      sceneIndex,
+      promptOverrides
     );
     try {
       console.log(
@@ -195,7 +202,13 @@ export async function generateSceneImageBuffer(
     }
   }
 
-  const prompt = buildSceneImagePrompt(product, script, scene, sceneIndex);
+  const prompt = buildSceneImagePrompt(
+    product,
+    script,
+    scene,
+    sceneIndex,
+    promptOverrides
+  );
   const quality = String(getQuality(model) ?? "standard");
   const size = String(getGenerateSize(model));
   console.log(

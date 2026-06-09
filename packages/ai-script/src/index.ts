@@ -17,6 +17,8 @@ import {
   rankConsumerHooks,
 } from "./product-hooks";
 import { buildViralMockScript } from "./viral-script";
+import type { PromptOverrides } from "@reels-factory/shared";
+import { resolvePromptText } from "@reels-factory/shared";
 import type {
   GenerateScriptInput,
   GenerateScriptResult,
@@ -132,7 +134,8 @@ export function buildMockScript(input: GenerateScriptInput): ReelScript {
 }
 
 export async function generateReelScript(
-  input: GenerateScriptInput
+  input: GenerateScriptInput,
+  promptOverrides?: PromptOverrides
 ): Promise<GenerateScriptResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -153,24 +156,9 @@ export async function generateReelScript(
         ...(input.customHighlight ? [input.customHighlight] : []),
       ]);
 
-  const system = `Ты копирайтер вирусных product Reels (15 сек, 9:16). Язык: русский. Тон: ${TONE_BY_TYPE[input.reelType]}.
-
-Формула Hook → Pain → Proof → Offer+CTA (ровно 4 сцены):
-1. hook (0–3.75с): остановить скролл, вопрос или интрига, макс 8 слов
-2. pain (3.75–7.5с): боль покупателя, эмпатия, макс 8 слов
-3. proof (7.5–11.25с): факт/цифра + social proof или цитата отзыва, макс 10 слов
-4. cta (11.25–15с): цена + призыв, макс 8 слов
-
-Правила:
-- ТОЛЬКО факты из productIntel и productData. Не выдумывай.
-- templateId: "viral_v1"
-- musicMood: energetic | trust | premium (по типу ролика)
-- musicTrackId: upbeat_drive | steady_groove | smooth_pulse
-- scenes: ровно 4, imageIndex 0–3 (разные фото товара)
-- style: hook | pain | proof | cta
-- headline/subheadline/bullets/reviewQuote — для UI, согласуй с сценами
-
-Верни ТОЛЬКО валидный JSON.`;
+  const system = resolvePromptText("script_system", promptOverrides, {
+    tone: TONE_BY_TYPE[input.reelType],
+  });
 
   const user = JSON.stringify({
     productData,
