@@ -4,11 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GeneratedScenesPanel } from "./GeneratedScenesPanel";
 import { PipelineLog } from "./PipelineLog";
+import { StoryboardLinks } from "./StoryboardLinks";
+import { StoryboardPanel } from "./StoryboardPanel";
 import { isDemoVideoUrl } from "@/lib/video";
 import { useJobProgressPoll } from "@/hooks/useJobProgressPoll";
 import {
   getActivePipelineLogMessage,
   isPreviewReadyStatus,
+  type ProductCard,
+  type ProductIntel,
+  type ReelScript,
 } from "@reels-factory/shared";
 
 const STORYBOARD_TRIGGER = new Set(["paid", "failed", "draft"]);
@@ -125,6 +130,9 @@ export function JobProgress({ jobId }: { jobId: string }) {
 
   if (isPreviewReadyStatus(job.status)) {
     const hasAiImages = (job.sceneImagesJson?.length ?? 0) >= 4;
+    const product = job.productJson as ProductCard;
+    const script = job.scriptJson as ReelScript | null;
+    const intel = job.productIntelJson as ProductIntel | null;
 
     return (
       <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
@@ -139,7 +147,23 @@ export function JobProgress({ jobId }: { jobId: string }) {
           </div>
 
           {hasAiImages && job.sceneImagesJson ? (
-            <GeneratedScenesPanel scenes={job.sceneImagesJson} />
+            <>
+              <StoryboardLinks
+                product={product}
+                productUrl={job.productUrl}
+                intel={intel}
+              />
+              <GeneratedScenesPanel scenes={job.sceneImagesJson} />
+            </>
+          ) : null}
+
+          {!hasAiImages && script ? (
+            <StoryboardPanel
+              product={product}
+              script={script}
+              productUrl={job.productUrl}
+              intel={intel}
+            />
           ) : null}
 
           {actionError && (

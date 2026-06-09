@@ -1,4 +1,5 @@
-import type { ProductCard, ReelScript } from "@reels-factory/shared";
+import type { ProductCard, ProductIntel, ReelScript } from "@reels-factory/shared";
+import { StoryboardLinks } from "./StoryboardLinks";
 
 const SCENE_STYLE_LABEL: Record<string, string> = {
   hook: "Hook — зацепить",
@@ -14,9 +15,16 @@ const SCENE_STYLE_LABEL: Record<string, string> = {
 type Props = {
   product: ProductCard;
   script: ReelScript;
+  productUrl?: string | null;
+  intel?: ProductIntel | null;
 };
 
-export function StoryboardPanel({ product, script }: Props) {
+export function StoryboardPanel({
+  product,
+  script,
+  productUrl,
+  intel,
+}: Props) {
   return (
     <div className="rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
@@ -33,6 +41,14 @@ export function StoryboardPanel({ product, script }: Props) {
             🎵 {script.musicMood}
           </span>
         )}
+      </div>
+
+      <div className="mt-4">
+        <StoryboardLinks
+          product={product}
+          productUrl={productUrl}
+          intel={intel}
+        />
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">

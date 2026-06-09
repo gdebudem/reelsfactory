@@ -1,15 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PipelineProgress, ProductCard, SceneImage } from "@reels-factory/shared";
+import type {
+  PipelineProgress,
+  ProductCard,
+  ProductIntel,
+  ReelScript,
+  SceneImage,
+} from "@reels-factory/shared";
 import { isPreviewReadyStatus } from "@reels-factory/shared";
 
 export type PolledJob = {
   id: string;
   status: string;
+  productUrl: string;
   videoUrl: string | null;
   errorMessage: string | null;
   productJson: ProductCard;
+  productIntelJson: ProductIntel | null;
+  scriptJson: ReelScript | null;
   sceneImagesJson: SceneImage[] | null;
   progressJson: PipelineProgress | null;
 };
