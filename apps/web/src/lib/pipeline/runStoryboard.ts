@@ -6,6 +6,8 @@ import type {
   ctaTypeSchema,
 } from "@reels-factory/shared";
 import {
+  appendBillingAlert,
+  OPENAI_BILLING_LOG_HINT,
   parsePipelineProgress,
   resetPipelineSteps,
   shouldRegenerateScript,
@@ -80,7 +82,19 @@ export async function runStoryboard(
     if (result.usage) {
       await reporter.logUsage(result.usage);
     } else if (result.mock) {
-      await reporter.log("сценарий · mock (без OpenAI)");
+      if (result.billingExceeded) {
+        const progress = await reporter.load();
+        await reporter.save(
+          appendBillingAlert(
+            progress,
+            `⚠ OpenAI биллинг (сценарий): ${result.mockReason}. ${OPENAI_BILLING_LOG_HINT}`
+          )
+        );
+      } else {
+        await reporter.log(
+          `сценарий · mock (${result.mockReason ?? "без OpenAI"})`
+        );
+      }
     }
 
     script = result.script;
@@ -112,6 +126,7 @@ export async function runStoryboard(
     return "storyboard_ready";
   }
 
+  await reporter.logCostSummary();
   await reporter.log("ищу картинки · очередь worker");
 
   await prisma.reelJob.update({

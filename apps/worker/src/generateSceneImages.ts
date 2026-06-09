@@ -3,6 +3,8 @@ import { generateSceneImages } from "@reels-factory/scene-images";
 import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import type { PipelineStepId } from "@reels-factory/shared";
 import {
+  appendJobBillingLog,
+  appendJobCostSummary,
   appendJobImageUsage,
   appendJobLog,
   ensureWorkerServiceDiagnostics,
@@ -41,26 +43,37 @@ export async function processGenerateSceneImages(
   await ensureWorkerServiceDiagnostics(prisma, jobId);
   await appendJobLog(prisma, jobId, "worker · генерация 4 AI-картинок");
 
-  const sceneImages = await generateSceneImages(
-    jobId,
-    product,
-    script,
-    uploadToStorage,
-    async (sceneIndex, phase, meta) => {
-      const stepId = IMAGE_STEPS[sceneIndex];
-      if (!stepId) return;
-      await touchJobProgress(prisma, jobId, phase, stepId);
-      if (phase === "complete" && meta) {
-        await appendJobImageUsage(prisma, jobId, {
-          sceneIndex,
-          model: meta.model,
-          quality: meta.quality,
-          size: meta.size,
-          mode: meta.mode,
-        });
+  const { scenes: sceneImages, usedProductPhotoFallback, fallbackReason } =
+    await generateSceneImages(
+      jobId,
+      product,
+      script,
+      uploadToStorage,
+      async (sceneIndex, phase, meta) => {
+        const stepId = IMAGE_STEPS[sceneIndex];
+        if (!stepId) return;
+        await touchJobProgress(prisma, jobId, phase, stepId);
+        if (phase === "complete" && meta) {
+          await appendJobImageUsage(prisma, jobId, {
+            sceneIndex,
+            model: meta.model,
+            quality: meta.quality,
+            size: meta.size,
+            mode: meta.mode,
+          });
+        }
       }
+    );
+
+  if (usedProductPhotoFallback && fallbackReason) {
+    if (fallbackReason.includes("OpenAI биллинг")) {
+      await appendJobBillingLog(prisma, jobId, fallbackReason);
+    } else {
+      await appendJobLog(prisma, jobId, fallbackReason);
     }
-  );
+  }
+
+  await appendJobCostSummary(prisma, jobId);
 
   await prisma.reelJob.update({
     where: { id: jobId },

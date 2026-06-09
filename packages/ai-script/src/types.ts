@@ -30,4 +30,6 @@ export type GenerateScriptResult = {
   script: import("@reels-factory/shared").ReelScript;
   usage?: GenerateScriptUsage;
   mock?: boolean;
+  mockReason?: string;
+  billingExceeded?: boolean;
 };

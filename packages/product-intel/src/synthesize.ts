@@ -1,4 +1,7 @@
 import {
+  describeOpenAiCapacityError,
+  isOpenAiCapacityError,
+  OPENAI_BILLING_LOG_HINT,
   productIntelSchema,
   type MarketplaceListing,
   type ProductCard,
@@ -138,6 +141,12 @@ export async function synthesizeProductIntel(
     });
   } catch (err) {
     console.warn("[product-intel] synthesize failed:", err);
+    if (isOpenAiCapacityError(err)) {
+      await reporter.log(
+        `⚠ OpenAI биллинг (синтез intel): ${describeOpenAiCapacityError(err)}. ${OPENAI_BILLING_LOG_HINT}`,
+        "billing"
+      );
+    }
     return buildIntelFromProductOnly(product, marketplaceListings);
   }
 }

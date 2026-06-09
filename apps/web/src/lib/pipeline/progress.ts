@@ -1,6 +1,9 @@
 import {
+  appendBillingAlert,
   appendPipelineLog,
   createInitialProgress,
+  estimatePipelineCost,
+  formatPipelineCostFooter,
   markPipelineStep,
   parsePipelineProgress,
   recordOpenAiChatUsage,
@@ -39,6 +42,8 @@ export interface JobProgressReporter extends ResearchProgressReporter {
   logImageUsage: (
     entry: Omit<OpenAiImageUsageEntry, "at">
   ) => Promise<void>;
+  logBilling: (text: string, meta?: Record<string, unknown>) => Promise<void>;
+  logCostSummary: () => Promise<void>;
   save: (progress: PipelineProgress) => Promise<void>;
   load: () => Promise<PipelineProgress>;
 }
@@ -66,6 +71,20 @@ export function createJobProgressReporter(
     async logImageUsage(entry: Omit<OpenAiImageUsageEntry, "at">) {
       const progress = await loadProgress(jobId);
       await saveProgress(jobId, recordOpenAiImageUsage(progress, entry));
+    },
+    async logBilling(text, meta) {
+      const progress = await loadProgress(jobId);
+      await saveProgress(jobId, appendBillingAlert(progress, text, meta));
+    },
+    async logCostSummary() {
+      const progress = await loadProgress(jobId);
+      const summary = estimatePipelineCost(progress.usage);
+      const footer = formatPipelineCostFooter(summary);
+      if (!footer) return;
+      await saveProgress(
+        jobId,
+        appendPipelineLog(progress, `итого за job · ${footer}`, "usage")
+      );
     },
     async logTavilySearch(query?: string) {
       const progress = await loadProgress(jobId);

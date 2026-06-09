@@ -1,4 +1,6 @@
 import {
+  describeOpenAiCapacityError,
+  isOpenAiCapacityError,
   reelScriptSchema,
   type ProductCard,
   type ProductIntel,
@@ -240,10 +242,15 @@ export async function generateReelScript(
       script: normalizeViralScenes(script),
       usage,
     };
-  } catch {
+  } catch (err) {
+    const billing = isOpenAiCapacityError(err);
     return {
       script: buildViralMockScript(input, intel),
       mock: true,
+      mockReason: billing
+        ? `лимит OpenAI — ${describeOpenAiCapacityError(err)}`
+        : "ошибка OpenAI — сценарий-заглушка",
+      billingExceeded: billing,
     };
   }
 }

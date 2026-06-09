@@ -1,6 +1,11 @@
 import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import { sceneImagesSchema } from "@reels-factory/shared";
 import { generateSceneImageBuffer } from "./generate.js";
+import {
+  describeOpenAiCapacityError,
+  isOpenAiCapacityError,
+  OPENAI_BILLING_LOG_HINT,
+} from "@reels-factory/shared";
 import { buildSceneImagePrompt } from "./prompts.js";
 
 export type SceneImageUploader = (
@@ -14,6 +19,41 @@ export type SceneImageProgress = (
   phase: "start" | "complete",
   meta?: import("./generate.js").SceneImageGenerationMeta
 ) => void | Promise<void>;
+
+export type GenerateSceneImagesResult = {
+  scenes: SceneImage[];
+  usedProductPhotoFallback?: boolean;
+  fallbackReason?: string;
+};
+
+async function completeFallbackProgress(
+  onProgress: SceneImageProgress | undefined,
+  count: number
+) {
+  for (let i = 0; i < count; i++) {
+    await onProgress?.(i, "complete", {
+      model: "fallback",
+      quality: "product-photo",
+      size: "site",
+      mode: "fallback",
+    });
+  }
+}
+
+async function buildProductPhotoFallback(
+  product: ProductCard,
+  script: ReelScript,
+  onProgress?: SceneImageProgress,
+  reason?: string
+): Promise<GenerateSceneImagesResult> {
+  const scenes = sceneImagesSchema.parse(fallbackFromProduct(product, script));
+  await completeFallbackProgress(onProgress, scenes.length);
+  return {
+    scenes,
+    usedProductPhotoFallback: true,
+    fallbackReason: reason,
+  };
+}
 
 function fallbackFromProduct(
   product: ProductCard,
@@ -42,7 +82,7 @@ export async function generateSceneImages(
   script: ReelScript,
   upload: SceneImageUploader,
   onProgress?: SceneImageProgress
-): Promise<SceneImage[]> {
+): Promise<GenerateSceneImagesResult> {
   const scenes = script.scenes.slice(0, 4);
   if (scenes.length < 4) {
     throw new Error(`Need 4 scenes, got ${scenes.length}`);
@@ -56,18 +96,12 @@ export async function generateSceneImages(
     console.warn(
       `[scene-images] MOCK/fallback — using product photos for job ${jobId}`
     );
-    const fallback = sceneImagesSchema.parse(
-      fallbackFromProduct(product, script)
+    return buildProductPhotoFallback(
+      product,
+      script,
+      onProgress,
+      "картинки · фото с сайта (MOCK_SCENE_IMAGES или нет OPENAI_API_KEY)"
     );
-    for (let i = 0; i < fallback.length; i++) {
-      await onProgress?.(i, "complete", {
-        model: "mock",
-        quality: "fallback",
-        size: "product-photo",
-        mode: "fallback",
-      });
-    }
-    return fallback;
   }
 
   const results: SceneImage[] = [];
@@ -85,13 +119,35 @@ export async function generateSceneImages(
       `[scene-images] Generating ${i + 1}/4 for job ${jobId} (${scene.style})`
     );
 
-    const { buffer, meta } = await generateSceneImageBuffer({
-      product,
-      script,
-      scene,
-      sceneIndex: i,
-      referenceImageUrl,
-    });
+    let buffer: Buffer;
+    let meta: import("./generate.js").SceneImageGenerationMeta;
+
+    try {
+      ({ buffer, meta } = await generateSceneImageBuffer({
+        product,
+        script,
+        scene,
+        sceneIndex: i,
+        referenceImageUrl,
+      }));
+    } catch (err) {
+      if (isOpenAiCapacityError(err)) {
+        const detail =
+          err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[scene-images] OpenAI capacity error on scene ${i + 1}, using product photos:`,
+          detail
+        );
+        return buildProductPhotoFallback(
+          product,
+          script,
+          onProgress,
+          `⚠ OpenAI биллинг: ${describeOpenAiCapacityError(err)}. Картинки — фото с сайта. ${OPENAI_BILLING_LOG_HINT}`
+        );
+      }
+      throw err;
+    }
+
     const key = `scene-images/${jobId}/scene-${i}.png`;
 
     let imageUrl: string;
@@ -118,7 +174,7 @@ export async function generateSceneImages(
     await onProgress?.(i, "complete", meta);
   }
 
-  return sceneImagesSchema.parse(results);
+  return { scenes: sceneImagesSchema.parse(results) };
 }
 
 export {

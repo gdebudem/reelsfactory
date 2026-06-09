@@ -1,7 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
 import {
+  appendBillingAlert,
   appendPipelineLog,
   createInitialProgress,
+  estimatePipelineCost,
+  formatPipelineCostFooter,
   markPipelineStep,
   parsePipelineProgress,
   recordOpenAiImageUsage,
@@ -65,6 +68,36 @@ export async function appendJobLog(
     prisma,
     jobId,
     appendPipelineLog(progress, text, kind, meta)
+  );
+}
+
+export async function appendJobBillingLog(
+  prisma: PrismaClient,
+  jobId: string,
+  text: string,
+  meta?: Record<string, unknown>
+): Promise<void> {
+  const progress = await loadProgress(prisma, jobId);
+  await saveProgress(
+    prisma,
+    jobId,
+    appendBillingAlert(progress, text, meta)
+  );
+}
+
+export async function appendJobCostSummary(
+  prisma: PrismaClient,
+  jobId: string
+): Promise<void> {
+  const progress = await loadProgress(prisma, jobId);
+  const summary = estimatePipelineCost(progress.usage);
+  if (summary.totalUsd <= 0 && summary.chatTotal === 0) return;
+  const footer = formatPipelineCostFooter(summary);
+  if (!footer) return;
+  await saveProgress(
+    prisma,
+    jobId,
+    appendPipelineLog(progress, `итого за job · ${footer}`, "usage")
   );
 }
 

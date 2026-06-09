@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  estimateChatCostUsd,
+  estimateImageCostUsd,
+  estimatePipelineCost,
+  formatUsd,
+} from "./usage-cost";
 
 const sceneStyleSchema = z.enum([
   "headline",
@@ -87,6 +93,7 @@ export const pipelineLogKindSchema = z.enum([
   "info",
   "service",
   "usage",
+  "billing",
   "error",
 ]);
 
@@ -283,6 +290,14 @@ export function appendUsageLog(
   return appendPipelineLog(progress, text, "usage", meta);
 }
 
+export function appendBillingAlert(
+  progress: PipelineProgress,
+  text: string,
+  meta?: Record<string, unknown>
+): PipelineProgress {
+  return appendPipelineLog(progress, text, "billing", meta);
+}
+
 export function recordOpenAiChatUsage(
   progress: PipelineProgress,
   entry: Omit<OpenAiChatUsageEntry, "at"> & { at?: string }
@@ -297,7 +312,12 @@ export function recordOpenAiChatUsage(
     totalTokens: entry.totalTokens,
     at,
   };
-  const text = `${entry.label} · ${formatTokenCount(entry.promptTokens)} prompt + ${formatTokenCount(entry.completionTokens)} completion = ${formatTokenCount(entry.totalTokens)} · ${entry.model}`;
+  const costUsd = estimateChatCostUsd(
+    entry.model,
+    entry.promptTokens,
+    entry.completionTokens
+  );
+  const text = `${entry.label} · ${formatTokenCount(entry.promptTokens)} prompt + ${formatTokenCount(entry.completionTokens)} completion = ${formatTokenCount(entry.totalTokens)} · ${entry.model} · ${formatUsd(costUsd)}`;
   return appendUsageLog(
     {
       ...progress,
@@ -308,7 +328,12 @@ export function recordOpenAiChatUsage(
       },
     },
     text,
-    { label: entry.label, model: entry.model, totalTokens: entry.totalTokens }
+    {
+      label: entry.label,
+      model: entry.model,
+      totalTokens: entry.totalTokens,
+      costUsd: Math.round(costUsd * 10000) / 10000,
+    }
   );
 }
 
@@ -332,7 +357,13 @@ export function recordOpenAiImageUsage(
       : entry.mode === "fallback"
         ? "fallback"
         : "generate";
-  const text = `картинка ${entry.sceneIndex + 1}/4 · ${entry.model} · ${entry.quality} · ${entry.size} · ${modeLabel}`;
+  const costUsd =
+    entry.mode === "fallback" || entry.model === "mock" || entry.model === "fallback"
+      ? 0
+      : estimateImageCostUsd(entry.model, entry.mode);
+  const costPart =
+    costUsd > 0 ? ` · ${formatUsd(costUsd)}` : entry.mode === "fallback" ? " · $0" : "";
+  const text = `картинка ${entry.sceneIndex + 1}/4 · ${entry.model} · ${entry.quality} · ${entry.size} · ${modeLabel}${costPart}`;
   return appendUsageLog(
     {
       ...progress,
@@ -343,7 +374,11 @@ export function recordOpenAiImageUsage(
       },
     },
     text,
-    { sceneIndex: entry.sceneIndex, model: entry.model }
+    {
+      sceneIndex: entry.sceneIndex,
+      model: entry.model,
+      costUsd: Math.round(costUsd * 10000) / 10000,
+    }
   );
 }
 
@@ -358,9 +393,10 @@ export function recordTavilySearch(
       ? `${query.slice(0, 45)}…`
       : query
     : undefined;
+  const costUsd = count * 0.008;
   const text = shortQuery
-    ? `Tavily поиск #${count}: ${shortQuery}`
-    : `Tavily · ${count} поисков`;
+    ? `Tavily поиск #${count}: ${shortQuery} · ${formatUsd(costUsd)}`
+    : `Tavily · ${count} поисков · ${formatUsd(costUsd)}`;
   return appendUsageLog(
     {
       ...progress,
@@ -371,7 +407,7 @@ export function recordTavilySearch(
       },
     },
     text,
-    { searchCount: count }
+    { searchCount: count, costUsd: Math.round(costUsd * 10000) / 10000 }
   );
 }
 
@@ -411,34 +447,19 @@ export function mergeWizardLogs(
   });
 }
 
-export function summarizePipelineUsage(
-  usage: PipelineUsage | undefined
-): {
-  chatPrompt: number;
-  chatCompletion: number;
-  chatTotal: number;
-  imageCount: number;
-  tavilySearches: number;
-} {
-  const u = usage ?? {
-    openaiChat: [],
-    openaiImages: [],
-    tavily: { searchCount: 0 },
-  };
-  let chatPrompt = 0;
-  let chatCompletion = 0;
-  let chatTotal = 0;
-  for (const e of u.openaiChat) {
-    chatPrompt += e.promptTokens;
-    chatCompletion += e.completionTokens;
-    chatTotal += e.totalTokens;
-  }
+export function summarizePipelineUsage(usage: PipelineUsage | undefined) {
+  const c = estimatePipelineCost(usage);
   return {
-    chatPrompt,
-    chatCompletion,
-    chatTotal,
-    imageCount: u.openaiImages.length,
-    tavilySearches: u.tavily.searchCount,
+    chatPrompt: c.chatPrompt,
+    chatCompletion: c.chatCompletion,
+    chatTotal: c.chatTotal,
+    chatUsd: c.chatUsd,
+    imageCount: c.imageCount,
+    imageAiCount: c.imageAiCount,
+    imageUsd: c.imageUsd,
+    tavilySearches: c.tavilySearches,
+    tavilyUsd: c.tavilyUsd,
+    totalUsd: c.totalUsd,
   };
 }
 

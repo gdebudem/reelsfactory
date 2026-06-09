@@ -247,6 +247,7 @@ export {
   appendPipelineLog,
   appendServiceLog,
   appendUsageLog,
+  appendBillingAlert,
   maskSecret,
   mergeWizardLogs,
   resetPipelineSteps,
@@ -275,3 +276,16 @@ export {
   type OpenAiImageUsageEntry,
   type SceneImage,
 } from "./pipeline-progress";
+
+export {
+  estimatePipelineCost,
+  formatPipelineCostFooter,
+  formatUsd,
+  type PipelineCostSummary,
+} from "./usage-cost";
+
+export {
+  isOpenAiCapacityError,
+  describeOpenAiCapacityError,
+  OPENAI_BILLING_LOG_HINT,
+} from "./openai-errors";
