@@ -92,6 +92,7 @@ export const PIPELINE_LOG_ON_DONE: Partial<Record<PipelineStepId, string>> = {
 export const pipelineLogKindSchema = z.enum([
   "info",
   "service",
+  "request",
   "usage",
   "billing",
   "error",
@@ -296,6 +297,57 @@ export function appendBillingAlert(
   meta?: Record<string, unknown>
 ): PipelineProgress {
   return appendPipelineLog(progress, text, "billing", meta);
+}
+
+export type RequestLogPayload = {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  url: string;
+  service: string;
+  target?: string;
+  body?: string;
+  status?: number;
+  result?: string;
+  runtime?: string;
+};
+
+function shortenRequestUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/$/, "") || "/";
+    return `${u.hostname}${path}`;
+  } catch {
+    return url;
+  }
+}
+
+export function formatRequestLogText(payload: RequestLogPayload): string {
+  const parts = [
+    `${payload.method} ${shortenRequestUrl(payload.url)}`,
+    payload.service,
+  ];
+  if (payload.target) parts.push(payload.target);
+  if (payload.body) parts.push(payload.body);
+  if (payload.runtime) parts.push(payload.runtime);
+  let text = parts.join(" · ");
+  if (payload.status !== undefined) text += ` → ${payload.status}`;
+  if (payload.result) text += ` · ${payload.result}`;
+  return text;
+}
+
+export function appendRequestLog(
+  progress: PipelineProgress,
+  payload: RequestLogPayload
+): PipelineProgress {
+  const text = formatRequestLogText(payload);
+  const meta: Record<string, string | number> = {
+    method: payload.method,
+    url: payload.url,
+    service: payload.service,
+  };
+  if (payload.target !== undefined) meta.target = payload.target;
+  if (payload.status !== undefined) meta.status = payload.status;
+  if (payload.runtime !== undefined) meta.runtime = payload.runtime;
+  return appendPipelineLog(progress, text, "request", meta);
 }
 
 export function recordOpenAiChatUsage(

@@ -25,6 +25,8 @@ function logEntryClass(kind?: PipelineLogEntry["kind"]): string {
   switch (kind) {
     case "service":
       return "text-slate-600";
+    case "request":
+      return "text-cyan-800";
     case "usage":
       return "text-indigo-700";
     case "billing":
@@ -40,6 +42,8 @@ function logPrefix(kind?: PipelineLogEntry["kind"]): string {
   switch (kind) {
     case "service":
       return "[сервис] ";
+    case "request":
+      return "[запрос] ";
     case "usage":
       return "[токены] ";
     case "billing":

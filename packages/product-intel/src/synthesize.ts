@@ -94,6 +94,15 @@ export async function synthesizeProductIntel(
   });
 
   try {
+    await reporter.logRequest?.({
+      method: "POST",
+      url: "https://api.openai.com/v1/chat/completions",
+      service: "OpenAI",
+      target: "синтез intel",
+      body: `model=${model} · json · temperature=0.3 · snippets=${searchResults.length}`,
+      runtime: "Vercel",
+    });
+
     const completion = await openai.chat.completions.create({
       model,
       messages: [

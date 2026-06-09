@@ -137,9 +137,26 @@ export async function fetchMarketplaceProducts(
     const url = urls[i]!;
     if (result.status !== "fulfilled") {
       console.warn(`[product-intel] Failed to parse ${url}`);
+      await reporter.logRequest?.({
+        method: "GET",
+        url,
+        service: "product-parser",
+        target: "страница маркетплейса",
+        result: "ошибка",
+        runtime: "Vercel",
+      });
       continue;
     }
     parsedCards.push(result.value);
+    await reporter.logRequest?.({
+      method: "GET",
+      url,
+      service: "product-parser",
+      target: "страница маркетплейса",
+      status: 200,
+      result: result.value.title.slice(0, 48),
+      runtime: "Vercel",
+    });
     const meta = listingMeta.find(
       (l) => normalizePageUrl(l.url) === normalizePageUrl(url)
     );

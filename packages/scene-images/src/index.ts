@@ -2,6 +2,7 @@ import type {
   ProductCard,
   PromptOverrides,
   ReelScript,
+  RequestLogPayload,
   SceneImage,
 } from "@reels-factory/shared";
 import { sceneImagesSchema } from "@reels-factory/shared";
@@ -87,7 +88,8 @@ export async function generateSceneImages(
   script: ReelScript,
   upload: SceneImageUploader,
   onProgress?: SceneImageProgress,
-  promptOverrides?: PromptOverrides
+  promptOverrides?: PromptOverrides,
+  onRequest?: (payload: RequestLogPayload) => void | Promise<void>
 ): Promise<GenerateSceneImagesResult> {
   const scenes = script.scenes.slice(0, 4);
   if (scenes.length < 4) {
@@ -136,6 +138,7 @@ export async function generateSceneImages(
         sceneIndex: i,
         referenceImageUrl,
         promptOverrides,
+        onRequest,
       }));
     } catch (err) {
       if (isOpenAiCapacityError(err)) {

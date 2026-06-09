@@ -17,7 +17,7 @@ import {
   rankConsumerHooks,
 } from "./product-hooks";
 import { buildViralMockScript } from "./viral-script";
-import type { PromptOverrides } from "@reels-factory/shared";
+import type { PromptOverrides, RequestLogPayload } from "@reels-factory/shared";
 import { resolvePromptText } from "@reels-factory/shared";
 import type {
   GenerateScriptInput,
@@ -133,9 +133,14 @@ export function buildMockScript(input: GenerateScriptInput): ReelScript {
   });
 }
 
+export type ScriptRequestLogger = {
+  logRequest?: (payload: RequestLogPayload) => void | Promise<void>;
+};
+
 export async function generateReelScript(
   input: GenerateScriptInput,
-  promptOverrides?: PromptOverrides
+  promptOverrides?: PromptOverrides,
+  requestLogger?: ScriptRequestLogger
 ): Promise<GenerateScriptResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -192,8 +197,18 @@ export async function generateReelScript(
   });
 
   try {
+    const model = getOpenAiModel();
+    await requestLogger?.logRequest?.({
+      method: "POST",
+      url: "https://api.openai.com/v1/chat/completions",
+      service: "OpenAI",
+      target: "сценарий",
+      body: `model=${model} · json · temperature=0.65 · reelType=${input.reelType}`,
+      runtime: "Vercel",
+    });
+
     const completion = await openai.chat.completions.create({
-      model: getOpenAiModel(),
+      model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -203,7 +218,6 @@ export async function generateReelScript(
     });
 
     const content = completion.choices[0]?.message?.content;
-    const model = getOpenAiModel();
     const usage: GenerateScriptUsage | undefined = completion.usage
       ? {
           label: "сценарий",

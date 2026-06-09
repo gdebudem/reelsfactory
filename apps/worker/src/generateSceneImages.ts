@@ -7,6 +7,7 @@ import {
   appendJobCostSummary,
   appendJobImageUsage,
   appendJobLog,
+  appendJobRequestLog,
   ensureWorkerServiceDiagnostics,
   touchJobProgress,
 } from "./jobProgress.js";
@@ -66,7 +67,8 @@ export async function processGenerateSceneImages(
           });
         }
       },
-      promptOverrides
+      promptOverrides,
+      (payload) => appendJobRequestLog(prisma, jobId, payload)
     );
 
   if (usedProductPhotoFallback && fallbackReason) {

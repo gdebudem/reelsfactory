@@ -1,6 +1,7 @@
 import {
   appendBillingAlert,
   appendPipelineLog,
+  appendRequestLog,
   createInitialProgress,
   estimatePipelineCost,
   formatPipelineCostFooter,
@@ -15,6 +16,7 @@ import {
   type PipelineLogKind,
   type PipelineProgress,
   type PipelineStepId,
+  type RequestLogPayload,
 } from "@reels-factory/shared";
 import type { ResearchProgressReporter } from "@reels-factory/product-intel";
 import { prisma } from "@/lib/prisma";
@@ -89,6 +91,10 @@ export function createJobProgressReporter(
     async logTavilySearch(query?: string) {
       const progress = await loadProgress(jobId);
       await saveProgress(jobId, recordTavilySearch(progress, query));
+    },
+    async logRequest(payload: RequestLogPayload) {
+      const progress = await loadProgress(jobId);
+      await saveProgress(jobId, appendRequestLog(progress, payload));
     },
     async save(progress: PipelineProgress) {
       await saveProgress(jobId, progress);

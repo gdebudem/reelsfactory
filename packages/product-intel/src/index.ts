@@ -9,6 +9,7 @@ import type { ResearchProgressReporter } from "./progress";
 import { noopReporter } from "./progress";
 import { getTavilyMode, searchProductWeb } from "./tavily";
 import { synthesizeProductIntel } from "./synthesize";
+import { createTavilyRequestHandler } from "./request-log";
 
 export { searchProductWeb, tavilySearch, getTavilyMode, isTavilyAvailable } from "./tavily";
 export { synthesizeProductIntel } from "./synthesize";
@@ -34,9 +35,7 @@ export async function buildProductIntel(
   const { product: enriched, marketplaceListings } =
     await fetchMarketplaceProducts(product, discovered, reporter);
 
-  const onTavily = reporter.logTavilySearch
-    ? (q: string) => reporter.logTavilySearch!(q)
-    : undefined;
+  const onTavily = createTavilyRequestHandler(reporter, "веб-исследование");
 
   const searchResults = await searchProductWeb(
     enriched.title,

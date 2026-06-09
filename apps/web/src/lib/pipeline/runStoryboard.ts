@@ -85,7 +85,8 @@ export async function runStoryboard(
         ctaValue: job.ctaValue ?? undefined,
         tier: job.tier as "basic" | "premium",
       },
-      promptOverrides
+      promptOverrides,
+      reporter
     );
 
     if (result.usage) {

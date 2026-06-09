@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   appendBillingAlert,
   appendPipelineLog,
+  appendRequestLog,
   createInitialProgress,
   estimatePipelineCost,
   formatPipelineCostFooter,
@@ -13,6 +14,7 @@ import {
   type PipelineLogKind,
   type PipelineProgress,
   type PipelineStepId,
+  type RequestLogPayload,
 } from "@reels-factory/shared";
 import { applyWorkerServiceDiagnostics } from "./service-diagnostics.js";
 
@@ -69,6 +71,15 @@ export async function appendJobLog(
     jobId,
     appendPipelineLog(progress, text, kind, meta)
   );
+}
+
+export async function appendJobRequestLog(
+  prisma: PrismaClient,
+  jobId: string,
+  payload: RequestLogPayload
+): Promise<void> {
+  const progress = await loadProgress(prisma, jobId);
+  await saveProgress(prisma, jobId, appendRequestLog(progress, payload));
 }
 
 export async function appendJobBillingLog(

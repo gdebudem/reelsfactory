@@ -10,6 +10,7 @@ import {
 import { buildProductSearchQuery } from "./search-terms";
 import type { ResearchProgressReporter } from "./progress";
 import { noopReporter } from "./progress";
+import { createTavilyRequestHandler } from "./request-log";
 
 export type DiscoveredListing = {
   platform: string;
@@ -46,9 +47,7 @@ export async function discoverMarketplaceUrls(
     listings.push(item);
   };
 
-  const onTavily = reporter.logTavilySearch
-    ? (q: string) => reporter.logTavilySearch!(q)
-    : undefined;
+  const onTavily = createTavilyRequestHandler(reporter, "маркетплейсы");
 
   await reporter.start("search_marketplaces");
 
@@ -75,7 +74,7 @@ export async function discoverMarketplaceUrls(
     }
 
     if (results.length === 0) {
-      const fallback = await duckDuckGoMarketplaceSearch(query, mp);
+      const fallback = await duckDuckGoMarketplaceSearch(query, mp, reporter);
       for (const item of fallback) add(item);
     }
 
@@ -105,7 +104,7 @@ export async function discoverMarketplaceUrls(
 
   if (listings.length === 0) {
     for (const mp of SEARCH_ORDER) {
-      const fallback = await duckDuckGoMarketplaceSearch(query, mp);
+      const fallback = await duckDuckGoMarketplaceSearch(query, mp, reporter);
       for (const item of fallback) add(item);
     }
   }
@@ -128,27 +127,51 @@ export async function discoverMarketplaceUrls(
 
 async function duckDuckGoMarketplaceSearch(
   query: string,
-  mp: MarketplaceConfig
+  mp: MarketplaceConfig,
+  reporter: ResearchProgressReporter = noopReporter
 ): Promise<DiscoveredListing[]> {
   const listings: DiscoveredListing[] = [];
   const domain = mp.domains[0]!.replace(/^www\./, "");
   const q = `site:${domain} ${query}`;
+  const requestUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
 
   try {
-    const res = await fetch(
-      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
-      {
-        headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-        signal: AbortSignal.timeout(12_000),
-      }
-    );
-    if (!res.ok) return listings;
+    const res = await fetch(requestUrl, {
+      headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) {
+      await reporter.logRequest?.({
+        method: "GET",
+        url: requestUrl,
+        service: "DuckDuckGo",
+        target: `fallback · ${mp.platform}`,
+        body: `q=site:${domain} …`,
+        status: res.status,
+        result: "ошибка",
+        runtime: "Vercel",
+      });
+      return listings;
+    }
     const html = await res.text();
     const links = parseDuckDuckGoLinks(html);
     for (const url of links) {
       if (!isMarketplaceProductUrl(url)) continue;
       listings.push({ platform: mp.platform, url });
     }
+    await reporter.logRequest?.({
+      method: "GET",
+      url: requestUrl,
+      service: "DuckDuckGo",
+      target: `fallback · ${mp.platform}`,
+      body: `q=site:${domain} …`,
+      status: res.status,
+      result:
+        listings.length > 0
+          ? `${listings.length} ссылок`
+          : "пусто",
+      runtime: "Vercel",
+    });
   } catch {
     /* optional fallback */
   }

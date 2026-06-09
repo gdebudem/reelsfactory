@@ -13,6 +13,7 @@ import type {
   ProductCard,
   PromptOverrides,
   ReelScript,
+  RequestLogPayload,
 } from "@reels-factory/shared";
 
 const GPT_IMAGE_RE = /^(gpt-image|chatgpt-image)/i;
@@ -138,6 +139,7 @@ export type SceneGenerationInput = {
   sceneIndex: number;
   referenceImageUrl?: string;
   promptOverrides?: PromptOverrides;
+  onRequest?: (payload: RequestLogPayload) => void | Promise<void>;
 };
 
 export type SceneImageGenerationMeta = {
@@ -157,8 +159,15 @@ export async function generateSceneImageBuffer(
 
   const openai = new OpenAI({ apiKey });
   const model = getImageModel();
-  const { product, script, scene, sceneIndex, referenceImageUrl, promptOverrides } =
-    input;
+  const {
+    product,
+    script,
+    scene,
+    sceneIndex,
+    referenceImageUrl,
+    promptOverrides,
+    onRequest,
+  } = input;
 
   const referenceBuf =
     useReferenceImages() &&
@@ -176,6 +185,16 @@ export async function generateSceneImageBuffer(
       promptOverrides
     );
     try {
+      const editSize = String(getEditSize(model));
+      const editQuality = String(getGptQuality() ?? "high");
+      await onRequest?.({
+        method: "POST",
+        url: "https://api.openai.com/v1/images/edits",
+        service: "OpenAI",
+        target: `картинка ${sceneIndex + 1}/4`,
+        body: `model=${model} · edit · ${editSize} · ${editQuality}`,
+        runtime: "Railway",
+      });
       console.log(
         `[scene-images] Reference edit scene ${sceneIndex + 1} model=${model} quality=${getGptQuality()}`
       );
@@ -211,6 +230,14 @@ export async function generateSceneImageBuffer(
   );
   const quality = String(getQuality(model) ?? "standard");
   const size = String(getGenerateSize(model));
+  await onRequest?.({
+    method: "POST",
+    url: "https://api.openai.com/v1/images/generations",
+    service: "OpenAI",
+    target: `картинка ${sceneIndex + 1}/4`,
+    body: `model=${model} · generate · ${size} · ${quality}`,
+    runtime: "Railway",
+  });
   console.log(
     `[scene-images] Generate scene ${sceneIndex + 1} model=${model} quality=${quality} size=${size}`
   );

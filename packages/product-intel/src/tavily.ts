@@ -13,6 +13,15 @@ export type TavilySearchOptions = {
 
 export type TavilyMode = "api_key" | "keyless" | "off";
 
+export type TavilyRequestInfo = {
+  query: string;
+  maxResults: number;
+  options: TavilySearchOptions;
+  mode: TavilyMode;
+  status: number;
+  resultCount: number;
+};
+
 /** How Tavily will be called for this process. */
 export function getTavilyMode(): TavilyMode {
   if (process.env.TAVILY_API_KEY?.trim()) return "api_key";
@@ -53,7 +62,7 @@ export async function tavilySearch(
   query: string,
   maxResults = 5,
   options: TavilySearchOptions = {},
-  onSearch?: (query: string) => void | Promise<void>
+  onRequest?: (info: TavilyRequestInfo) => void | Promise<void>
 ): Promise<TavilyResult[]> {
   const mode = getTavilyMode();
   if (mode === "off") return [];
@@ -82,28 +91,45 @@ export async function tavilySearch(
     console.warn(
       `[product-intel] Tavily HTTP ${res.status} (${mode}) for: ${query.slice(0, 60)}${detail ? ` — ${detail.slice(0, 120)}` : ""}`
     );
+    await onRequest?.({
+      query,
+      maxResults,
+      options,
+      mode,
+      status: res.status,
+      resultCount: 0,
+    });
     return [];
   }
-
-  await onSearch?.(query);
 
   const data = (await res.json()) as {
     results?: { title?: string; url?: string; content?: string }[];
   };
 
-  return (data.results ?? [])
+  const results = (data.results ?? [])
     .filter((r) => r.url && (r.content || r.title))
     .map((r) => ({
       title: r.title ?? "",
       url: r.url!,
       content: (r.content ?? r.title ?? "").slice(0, 500),
     }));
+
+  await onRequest?.({
+    query,
+    maxResults,
+    options,
+    mode,
+    status: res.status,
+    resultCount: results.length,
+  });
+
+  return results;
 }
 
 export async function searchProductWeb(
   productTitle: string,
   brand?: string,
-  onSearch?: (query: string) => void | Promise<void>
+  onRequest?: (info: TavilyRequestInfo) => void | Promise<void>
 ) {
   const label = brand ? `${productTitle} ${brand}` : productTitle;
   const queries = [
@@ -113,8 +139,8 @@ export async function searchProductWeb(
   ];
 
   const batches = await Promise.all([
-    tavilySearch(queries[0]!, 4, { country: "russia" }, onSearch),
-    tavilySearch(queries[1]!, 4, { country: "russia" }, onSearch),
+    tavilySearch(queries[0]!, 4, { country: "russia" }, onRequest),
+    tavilySearch(queries[1]!, 4, { country: "russia" }, onRequest),
     tavilySearch(
       queries[2]!,
       5,
@@ -127,7 +153,7 @@ export async function searchProductWeb(
           "market.yandex.ru",
         ],
       },
-      onSearch
+      onRequest
     ),
   ]);
 
