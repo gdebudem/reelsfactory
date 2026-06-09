@@ -53,12 +53,15 @@
 |-----|----------|
 | `OPENAI_API_KEY` | ключ с [platform.openai.com](https://platform.openai.com/api-keys) |
 
-## Tavily (поиск на Ozon/WB/отзывы)
+## Tavily — обязателен на Vercel production
+
+Без Tavily не работают: поиск на Ozon/WB/М.Видео, отзывы из сниппетов, extract страниц маркетплейсов.
 
 | Key | Значение |
 |-----|----------|
-| `TAVILY_API_KEY` | ключ с [app.tavily.com](https://app.tavily.com) — 1000 бесплатных credits/мес |
-| *(без ключа)* | **keyless** — Tavily работает автоматически, лимиты ниже |
+| `TAVILY_API_KEY` | **рекомендуется** — ключ с [app.tavily.com](https://app.tavily.com), 1000 credits/мес |
+| *(без ключа)* | **keyless** (по умолчанию) — работает, но лимиты ниже |
+| `TAVILY_KEYLESS=false` | **не ставить** без `TAVILY_API_KEY` — отключит research |
 
 Добавить ключ на Vercel:
 
@@ -67,7 +70,13 @@ $env:TAVILY_API_KEY = "tvly-..."
 powershell -File scripts/sync-vercel-tavily.ps1
 ```
 
-Проверка: `/api/health` → `"tavilyAvailable": true`, `"tavilyMode": "api_key"` или `"keyless"`.
+Проверка после деплоя:
+
+```
+GET /api/health
+→ "tavilyProductionReady": true
+→ "tavilyMode": "api_key" или "keyless"
+```
 
 Tavily нужен только на **Vercel** (storyboard/research), не на Railway worker.
 

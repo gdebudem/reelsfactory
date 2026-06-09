@@ -7,6 +7,8 @@ import {
   hasStorageConfigured,
   hasTavilyAvailable,
   hasTavilyConfigured,
+  isTavilyProductionReady,
+  tavilyProductionHint,
 } from "@/lib/env";
 import { DEFAULT_OPENAI_MODEL } from "@reels-factory/ai-script";
 
@@ -39,5 +41,7 @@ export async function GET() {
     tavilyConfigured: hasTavilyConfigured(),
     tavilyAvailable: hasTavilyAvailable(),
     tavilyMode: getTavilyStatus(),
+    tavilyProductionReady: isTavilyProductionReady(),
+    tavilyProductionHint: tavilyProductionHint(),
   });
 }

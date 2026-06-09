@@ -9,7 +9,7 @@ export const MARKETPLACES: MarketplaceConfig[] = [
   {
     platform: "Ozon",
     domains: ["ozon.ru", "www.ozon.ru"],
-    productPathRe: /\/product\//i,
+    productPathRe: /\/product\/|\/t\/[a-zA-Z0-9_-]+/i,
     searchPathRe: /\/search\//i,
   },
   {

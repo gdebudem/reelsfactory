@@ -111,7 +111,7 @@ export async function tavilySearch(
     .map((r) => ({
       title: r.title ?? "",
       url: r.url!,
-      content: (r.content ?? r.title ?? "").slice(0, 500),
+      content: (r.content ?? r.title ?? "").slice(0, 1200),
     }));
 
   await onRequest?.({
@@ -168,4 +168,92 @@ export async function searchProductWeb(
     }
   }
   return merged.slice(0, 12);
+}
+
+export type TavilyExtractResult = {
+  url: string;
+  content: string;
+};
+
+export type TavilyExtractRequestInfo = {
+  urls: string[];
+  query?: string;
+  mode: TavilyMode;
+  status: number;
+  resultCount: number;
+};
+
+function buildTavilyHeaders(mode: TavilyMode, apiKey?: string) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (mode === "keyless") {
+    headers["X-Tavily-Access-Mode"] = "keyless";
+  } else if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  return headers;
+}
+
+export async function tavilyExtract(
+  urls: string[],
+  query?: string,
+  onRequest?: (info: TavilyExtractRequestInfo) => void | Promise<void>
+): Promise<TavilyExtractResult[]> {
+  const mode = getTavilyMode();
+  if (mode === "off" || urls.length === 0) return [];
+
+  const apiKey =
+    mode === "api_key" ? process.env.TAVILY_API_KEY!.trim() : undefined;
+
+  const body: Record<string, unknown> = {
+    urls: urls.slice(0, 5),
+    extract_depth: "advanced",
+    format: "text",
+  };
+  if (query) body.query = query;
+  if (apiKey) body.api_key = apiKey;
+
+  const res = await fetch("https://api.tavily.com/extract", {
+    method: "POST",
+    headers: buildTavilyHeaders(mode, apiKey),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(45_000),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.warn(
+      `[product-intel] Tavily extract HTTP ${res.status}: ${detail.slice(0, 120)}`
+    );
+    await onRequest?.({
+      urls,
+      query,
+      mode,
+      status: res.status,
+      resultCount: 0,
+    });
+    return [];
+  }
+
+  const data = (await res.json()) as {
+    results?: { url?: string; raw_content?: string; content?: string }[];
+  };
+
+  const results = (data.results ?? [])
+    .filter((r) => r.url && (r.raw_content || r.content))
+    .map((r) => ({
+      url: r.url!,
+      content: (r.raw_content ?? r.content ?? "").slice(0, 12_000),
+    }));
+
+  await onRequest?.({
+    urls,
+    query,
+    mode,
+    status: res.status,
+    resultCount: results.length,
+  });
+
+  return results;
 }

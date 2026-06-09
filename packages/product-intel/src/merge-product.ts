@@ -1,6 +1,7 @@
 import type { MarketplaceListing, ProductCard } from "@reels-factory/shared";
-import { parseProductUrl } from "@reels-factory/product-parser";
+import { ProductParseError } from "@reels-factory/product-parser";
 import type { DiscoveredListing } from "./discover";
+import { parseListingUrl } from "./marketplace-parse";
 import { normalizePageUrl } from "./marketplaces";
 import type { ResearchProgressReporter } from "./progress";
 import { noopReporter } from "./progress";
@@ -34,7 +35,7 @@ export function mergeProductCards(
       if (reviewTexts.has(key)) continue;
       reviewTexts.add(key);
       reviews.push(review);
-      if (reviews.length >= 6) break;
+      if (reviews.length >= 8) break;
     }
   }
 
@@ -129,32 +130,39 @@ export async function fetchMarketplaceProducts(
   await reporter.start("read_descriptions");
 
   const results = await Promise.allSettled(
-    urls.map((url) => parseProductUrl(url))
+    urls.map((url) => parseListingUrl(url, product.title))
   );
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]!;
     const url = urls[i]!;
     if (result.status !== "fulfilled") {
-      console.warn(`[product-intel] Failed to parse ${url}`);
+      const msg =
+        result.reason instanceof ProductParseError
+          ? result.reason.message
+          : result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason);
+      console.warn(`[product-intel] Failed to parse ${url}: ${msg}`);
       await reporter.logRequest?.({
         method: "GET",
         url,
         service: "product-parser",
         target: "страница маркетплейса",
-        result: "ошибка",
+        result: `ошибка: ${msg.slice(0, 60)}`,
         runtime: "Vercel",
       });
       continue;
     }
     parsedCards.push(result.value);
+    const reviewCount = result.value.reviews?.length ?? 0;
     await reporter.logRequest?.({
       method: "GET",
       url,
       service: "product-parser",
       target: "страница маркетплейса",
       status: 200,
-      result: result.value.title.slice(0, 48),
+      result: `${result.value.title.slice(0, 32)} · ${reviewCount} отзывов`,
       runtime: "Vercel",
     });
     const meta = listingMeta.find(
@@ -173,12 +181,25 @@ export async function fetchMarketplaceProducts(
   const merged = mergeProductCards(product, parsedCards);
   await reporter.complete("read_reviews");
 
+  const reviewCount = merged.reviews?.length ?? 0;
   await reporter.log(
-    `спарсено ${parsedCards.length}/${urls.length} страниц · ${merged.images.length} фото · ${merged.reviews?.length ?? 0} отзывов`
+    `спарсено ${parsedCards.length}/${urls.length} страниц · ${merged.images.length} фото · ${reviewCount} отзывов`
   );
 
+  if (urls.length > 0 && parsedCards.length === 0) {
+    await reporter.log(
+      "⚠ маркетплейсы недоступны напрямую — отзывы подтянем из веб-поиска",
+      "info"
+    );
+  } else if (reviewCount === 0 && urls.length > 0) {
+    await reporter.log(
+      "⚠ на страницах маркетплейсов отзывов не найдено — ищем в сниппетах",
+      "info"
+    );
+  }
+
   console.log(
-    `[product-intel] Merged product: images=${merged.images.length}, specs=${merged.specs?.length ?? 0}, reviews=${merged.reviews?.length ?? 0}, parsed=${parsedCards.length}/${urls.length}`
+    `[product-intel] Merged product: images=${merged.images.length}, specs=${merged.specs?.length ?? 0}, reviews=${reviewCount}, parsed=${parsedCards.length}/${urls.length}`
   );
 
   return { product: merged, marketplaceListings: listingMeta };

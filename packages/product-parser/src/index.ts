@@ -6,11 +6,12 @@ import {
   type DeepProductFields,
 } from "./extract-deep";
 import { extractImagesFromHtml } from "./extract-images";
+import { fetchHtml } from "./fetch-html";
+import {
+  extractMarketplaceEmbedded,
+  isMarketplaceHost,
+} from "./marketplace-html";
 import { isPlaywrightEnabled, isProductParsePoor } from "./parse-quality";
-
-const FETCH_TIMEOUT_MS = 15000;
-const USER_AGENT =
-  "Mozilla/5.0 (compatible; ReelsFactory/1.0; +https://reelsfactory.app)";
 
 function parsePrice(text: string): { price: number | null; currency: string } {
   const normalized = text.replace(/\s/g, " ").trim();
@@ -167,48 +168,50 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
     throw new ProductParseError("Поддерживаются только HTTP(S) ссылки");
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
   let html: string;
+  let finalUrl = url;
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-      },
-      redirect: "follow",
-    });
-    if (!res.ok) {
+    const res = await fetchHtml(url);
+    if (res.status >= 400) {
       throw new ProductParseError(
         `Не удалось загрузить страницу (HTTP ${res.status})`
       );
     }
-    html = await res.text();
+    html = res.html;
+    finalUrl = res.finalUrl;
   } catch (e) {
     if (e instanceof ProductParseError) throw e;
     if (isPlaywrightEnabled()) {
       try {
         const { parseWithPlaywright } = await import("./playwright");
         return parseWithPlaywright(url);
-      } catch {
-        /* fall through */
+      } catch (pwErr) {
+        console.warn(
+          "[product-parser] Playwright fallback failed:",
+          url,
+          pwErr instanceof Error ? pwErr.message : pwErr
+        );
       }
     }
     throw new ProductParseError(
       "Не удалось прочитать страницу. Проверьте ссылку или попробуйте позже."
     );
-  } finally {
-    clearTimeout(timeout);
   }
 
   const jsonLd = extractJsonLdProduct(html);
-  const og = extractOgMeta(html, url);
+  const og = extractOgMeta(html, finalUrl);
   const jsonLdDeep = extractDeepFromJsonLd(html);
   const htmlDeep = extractDeepFromHtml(html);
-  const deep = mergeDeepFields(jsonLdDeep, htmlDeep);
+  const mpEmbedded = isMarketplaceHost(finalUrl)
+    ? extractMarketplaceEmbedded(html)
+    : {};
+  const deep = mergeDeepFields(jsonLdDeep, htmlDeep, {
+    specs: mpEmbedded.specs,
+    reviews: mpEmbedded.reviews,
+    aggregateRating: mpEmbedded.rating
+      ? { value: mpEmbedded.rating.value, count: mpEmbedded.rating.count }
+      : undefined,
+  });
 
   const title = jsonLd?.title || og.title;
   if (!title) {
@@ -217,7 +220,7 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
     );
   }
 
-  const htmlImages = extractImagesFromHtml(html, url);
+  const htmlImages = extractImagesFromHtml(html, finalUrl);
   const images = [
     ...(jsonLd?.images ?? []),
     ...(og.images ?? []),
@@ -229,8 +232,12 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
       try {
         const { parseWithPlaywright } = await import("./playwright");
         return parseWithPlaywright(url);
-      } catch {
-        /* fall through */
+      } catch (pwErr) {
+        console.warn(
+          "[product-parser] Playwright image fallback failed:",
+          url,
+          pwErr instanceof Error ? pwErr.message : pwErr
+        );
       }
     }
     throw new ProductParseError("Не удалось найти изображение товара");
@@ -243,7 +250,7 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
     images: images.slice(0, 5),
     description:
       jsonLd?.description ?? jsonLdDeep.description ?? og.description,
-    sourceUrl: url,
+    sourceUrl: finalUrl,
     brand: jsonLd?.brand ?? deep.brand,
     category: jsonLd?.category ?? deep.category,
     specs: deep.specs,
@@ -257,8 +264,12 @@ export async function parseProductUrl(url: string): Promise<ProductCard> {
       const { parseWithPlaywright } = await import("./playwright");
       const pwCard = await parseWithPlaywright(url);
       return mergeProductCards(card, pwCard);
-    } catch {
-      /* use HTML card */
+    } catch (pwErr) {
+      console.warn(
+        "[product-parser] Playwright enrich failed:",
+        url,
+        pwErr instanceof Error ? pwErr.message : pwErr
+      );
     }
   }
 
@@ -315,6 +326,11 @@ function mergeDeepFields(
 }
 
 export { isProductParsePoor, isPlaywrightEnabled } from "./parse-quality";
+export {
+  extractDeepFromHtml,
+  extractDeepFromJsonLd,
+} from "./extract-deep";
+export { isMarketplaceHost, extractMarketplaceEmbedded } from "./marketplace-html";
 
 function mergeProductCards(html: ProductCard, pw: ProductCard): ProductCard {
   const images = [...html.images, ...pw.images].filter(

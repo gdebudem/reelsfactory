@@ -24,6 +24,19 @@ export function hasTavilyAvailable() {
   return getTavilyStatus() !== "off";
 }
 
+/** True when Vercel production can run marketplace/review research. */
+export function isTavilyProductionReady() {
+  return hasTavilyAvailable();
+}
+
+export function tavilyProductionHint(): string | null {
+  if (isTavilyProductionReady()) return null;
+  return (
+    "Production требует Tavily: добавьте TAVILY_API_KEY на Vercel " +
+    "(scripts/sync-vercel-tavily.ps1) или не отключайте keyless (уберите TAVILY_KEYLESS=false)."
+  );
+}
+
 export function hasStorageConfigured() {
   return Boolean(
     process.env.S3_BUCKET?.trim() &&

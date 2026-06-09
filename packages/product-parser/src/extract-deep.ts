@@ -31,6 +31,7 @@ export function extractDeepFromHtml(html: string): DeepProductFields {
   const reviews = dedupeReviews([
     ...extractMicrodataReviews($),
     ...extractCommentReviews($),
+    ...extractMarketplaceReviewBlocks($),
   ]);
   const prosFromPage = extractProsLists($);
 
@@ -267,6 +268,26 @@ function extractMicrodataReviews($: CheerioRoot): ProductReview[] {
   return reviews;
 }
 
+function extractMarketplaceReviewBlocks($: CheerioRoot): ProductReview[] {
+  const reviews: ProductReview[] = [];
+  const selectors = [
+    "[data-widget='webReview']",
+    "[data-widget='webSingleProductScore']",
+    ".feedback__text",
+    ".product-review__text",
+    ".comments__item-text",
+    ".review-item__text",
+    ".c-product__review-text",
+  ];
+  for (const sel of selectors) {
+    $(sel).each((_, el) => {
+      const text = stripHtml($(el).text()).trim();
+      if (text.length >= 15) reviews.push({ text: text.slice(0, 500) });
+    });
+  }
+  return reviews;
+}
+
 function extractCommentReviews($: CheerioRoot): ProductReview[] {
   const reviews: ProductReview[] = [];
   const selectors = [
@@ -274,6 +295,10 @@ function extractCommentReviews($: CheerioRoot): ProductReview[] {
     ".comment-text",
     ".review-text",
     ".product-review-content",
+    ".comment-content",
+    ".review-item",
+    "#reviews .comment-text",
+    ".tabs-reviews .review",
   ];
   for (const sel of selectors) {
     $(sel).each((_, el) => {

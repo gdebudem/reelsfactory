@@ -3,7 +3,7 @@
 #
 # Usage:
 #   cd "c:\cursor\reels factory"
-#   $env:TAVILY_API_KEY = "tvly-..."   # or add to .env
+#   $env:TAVILY_API_KEY = "tvly-..."   # or add to apps/web/.env.local
 #   powershell -File scripts/sync-vercel-tavily.ps1
 
 $ErrorActionPreference = "Stop"
@@ -23,6 +23,15 @@ function Read-DotEnvValue([string]$file, [string]$key) {
   return $null
 }
 
+function Set-VercelEnv([string]$name, [string]$value, [string]$target) {
+  Write-Host "Setting $name on Vercel ($target)..."
+  $null = npx vercel env rm $name $target --yes 2>$null
+  $value | npx vercel env add $name $target
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to set $name for $target (exit $LASTEXITCODE)"
+  }
+}
+
 $key = $env:TAVILY_API_KEY
 if (-not $key) {
   foreach ($src in @(
@@ -39,21 +48,22 @@ if (-not $key) {
   Write-Host "TAVILY_API_KEY not found."
   Write-Host "Get a free key: https://app.tavily.com"
   Write-Host "Then: `$env:TAVILY_API_KEY = 'tvly-...'; powershell -File scripts/sync-vercel-tavily.ps1"
+  Write-Host ""
+  Write-Host "Without a key, production uses Tavily keyless (default). Do NOT set TAVILY_KEYLESS=false."
   exit 1
 }
 
 Push-Location $webDir
 try {
-  Write-Host "Setting TAVILY_API_KEY on Vercel (production)..."
-  $key | npx vercel env add TAVILY_API_KEY production
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "If variable exists, remove it first: npx vercel env rm TAVILY_API_KEY production"
-    exit 1
-  }
-  Write-Host "Setting TAVILY_API_KEY on Vercel (preview)..."
-  $key | npx vercel env add TAVILY_API_KEY preview
-  Write-Host "Done. Redeploy Vercel (git push or vercel --prod) for changes to apply."
-  Write-Host "Check: https://web-omega-ochre-29.vercel.app/api/health -> tavilyMode: api_key"
+  Set-VercelEnv "TAVILY_API_KEY" $key "production"
+  Set-VercelEnv "TAVILY_API_KEY" $key "preview"
+
+  # Ensure keyless is not explicitly disabled on production
+  $null = npx vercel env rm TAVILY_KEYLESS production --yes 2>$null
+  $null = npx vercel env rm TAVILY_KEYLESS preview --yes 2>$null
+
+  Write-Host "Done. Redeploy Vercel (git push) for changes to apply."
+  Write-Host "Check: /api/health -> tavilyProductionReady: true, tavilyMode: api_key"
 }
 finally {
   Pop-Location

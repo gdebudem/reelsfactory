@@ -7,11 +7,25 @@ import { discoverMarketplaceUrls } from "./discover";
 import { fetchMarketplaceProducts } from "./merge-product";
 import type { ResearchProgressReporter } from "./progress";
 import { noopReporter } from "./progress";
-import { getTavilyMode, searchProductWeb } from "./tavily";
+import {
+  getTavilyMode,
+  isTavilyAvailable,
+  searchProductWeb,
+} from "./tavily";
 import { synthesizeProductIntel } from "./synthesize";
 import { createTavilyRequestHandler } from "./request-log";
+import {
+  mergeReviewsIntoProduct,
+  reviewsFromTavilyResults,
+} from "./review-extract";
 
-export { searchProductWeb, tavilySearch, getTavilyMode, isTavilyAvailable } from "./tavily";
+export {
+  searchProductWeb,
+  tavilySearch,
+  tavilyExtract,
+  getTavilyMode,
+  isTavilyAvailable,
+} from "./tavily";
 export { synthesizeProductIntel } from "./synthesize";
 export { discoverMarketplaceUrls } from "./discover";
 export type { ResearchProgressReporter } from "./progress";
@@ -21,14 +35,31 @@ export type ProductResearchResult = {
   product: ProductCard;
 };
 
+export function assertTavilyForResearch(): void {
+  if (isTavilyAvailable()) return;
+  throw new Error(
+    "Tavily обязателен для поиска на маркетплейсах и отзывов. " +
+      "Добавьте TAVILY_API_KEY на Vercel (scripts/sync-vercel-tavily.ps1) " +
+      "или уберите TAVILY_KEYLESS=false."
+  );
+}
+
 export async function buildProductIntel(
   product: ProductCard,
   reporter: ResearchProgressReporter = noopReporter,
   promptOverrides?: PromptOverrides
 ): Promise<ProductResearchResult> {
+  assertTavilyForResearch();
+
   const tavilyMode = getTavilyMode();
   console.log(
     `[product-intel] Research start: "${product.title.slice(0, 50)}", tavily=${tavilyMode}`
+  );
+
+  await reporter.log(
+    tavilyMode === "api_key"
+      ? "Tavily · api_key · поиск маркетплейсов и отзывов"
+      : "Tavily · keyless · поиск маркетплейсов и отзывов"
   );
 
   const discovered = await discoverMarketplaceUrls(product, reporter);
@@ -43,9 +74,17 @@ export async function buildProductIntel(
     onTavily
   );
 
+  const snippetReviews = reviewsFromTavilyResults(searchResults);
+  const productWithReviews = mergeReviewsIntoProduct(enriched, snippetReviews);
+  if (snippetReviews.length > 0) {
+    await reporter.log(
+      `веб-поиск · ${snippetReviews.length} фрагментов отзывов из сниппетов`
+    );
+  }
+
   await reporter.start("extract_benefits");
   const intel = await synthesizeProductIntel(
-    enriched,
+    productWithReviews,
     searchResults,
     marketplaceListings,
     reporter,
@@ -53,5 +92,5 @@ export async function buildProductIntel(
   );
   await reporter.complete("extract_benefits");
 
-  return { intel, product: enriched };
+  return { intel, product: productWithReviews };
 }
