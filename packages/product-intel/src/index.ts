@@ -3,10 +3,10 @@ import { discoverMarketplaceUrls } from "./discover";
 import { fetchMarketplaceProducts } from "./merge-product";
 import type { ResearchProgressReporter } from "./progress";
 import { noopReporter } from "./progress";
-import { searchProductWeb } from "./tavily";
+import { getTavilyMode, searchProductWeb } from "./tavily";
 import { synthesizeProductIntel } from "./synthesize";
 
-export { searchProductWeb, tavilySearch } from "./tavily";
+export { searchProductWeb, tavilySearch, getTavilyMode, isTavilyAvailable } from "./tavily";
 export { synthesizeProductIntel } from "./synthesize";
 export { discoverMarketplaceUrls } from "./discover";
 export type { ResearchProgressReporter } from "./progress";
@@ -20,9 +20,9 @@ export async function buildProductIntel(
   product: ProductCard,
   reporter: ResearchProgressReporter = noopReporter
 ): Promise<ProductResearchResult> {
-  const hasTavily = Boolean(process.env.TAVILY_API_KEY?.trim());
+  const tavilyMode = getTavilyMode();
   console.log(
-    `[product-intel] Research start: "${product.title.slice(0, 50)}", tavily=${hasTavily ? "on" : "off"}`
+    `[product-intel] Research start: "${product.title.slice(0, 50)}", tavily=${tavilyMode}`
   );
 
   const discovered = await discoverMarketplaceUrls(product, reporter);

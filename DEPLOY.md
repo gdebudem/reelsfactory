@@ -53,6 +53,24 @@
 |-----|----------|
 | `OPENAI_API_KEY` | ключ с [platform.openai.com](https://platform.openai.com/api-keys) |
 
+## Tavily (поиск на Ozon/WB/отзывы)
+
+| Key | Значение |
+|-----|----------|
+| `TAVILY_API_KEY` | ключ с [app.tavily.com](https://app.tavily.com) — 1000 бесплатных credits/мес |
+| *(без ключа)* | **keyless** — Tavily работает автоматически, лимиты ниже |
+
+Добавить ключ на Vercel:
+
+```powershell
+$env:TAVILY_API_KEY = "tvly-..."
+powershell -File scripts/sync-vercel-tavily.ps1
+```
+
+Проверка: `/api/health` → `"tavilyAvailable": true`, `"tavilyMode": "api_key"` или `"keyless"`.
+
+Tavily нужен только на **Vercel** (storyboard/research), не на Railway worker.
+
 Модель в коде: **`gpt-4o`** (можно переопределить `OPENAI_MODEL`).
 
 Тот же `OPENAI_API_KEY` добавьте в **Railway worker** (сценарий генерируется при старте рендера).

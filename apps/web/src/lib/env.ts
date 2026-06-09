@@ -10,6 +10,20 @@ export function hasOpenAiConfigured() {
   return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
 
+export function hasTavilyConfigured() {
+  return Boolean(process.env.TAVILY_API_KEY?.trim());
+}
+
+export function getTavilyStatus(): "api_key" | "keyless" | "off" {
+  if (hasTavilyConfigured()) return "api_key";
+  if (process.env.TAVILY_KEYLESS === "false") return "off";
+  return "keyless";
+}
+
+export function hasTavilyAvailable() {
+  return getTavilyStatus() !== "off";
+}
+
 export function hasStorageConfigured() {
   return Boolean(
     process.env.S3_BUCKET?.trim() &&

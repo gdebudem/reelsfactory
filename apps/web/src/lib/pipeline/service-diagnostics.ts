@@ -38,11 +38,26 @@ export function applyWebServiceDiagnostics(
   });
 
   const tavilyKey = process.env.TAVILY_API_KEY?.trim();
+  const tavilyMode = tavilyKey
+    ? "api_key"
+    : process.env.TAVILY_KEYLESS === "false"
+      ? "off"
+      : "keyless";
+
   next = appendServiceLog(next, {
     service: "Tavily Search",
-    account: tavilyKey ? maskSecret(tavilyKey) : "выключен",
+    account: tavilyKey
+      ? maskSecret(tavilyKey)
+      : tavilyMode === "keyless"
+        ? "keyless (без ключа)"
+        : "выключен",
     runtime: "Vercel",
-    detail: tavilyKey ? "включён" : "без ключа",
+    detail:
+      tavilyMode === "api_key"
+        ? "1000 credits/mo"
+        : tavilyMode === "keyless"
+          ? "режим без API-ключа · лимиты ниже"
+          : "без Tavily · только DuckDuckGo",
   });
 
   const dbHost = parseDbHost(process.env.DATABASE_URL);

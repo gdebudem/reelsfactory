@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import {
+  getTavilyStatus,
   hasDatabaseConfigured,
   hasOpenAiConfigured,
   hasRedisConfigured,
   hasStorageConfigured,
+  hasTavilyAvailable,
+  hasTavilyConfigured,
 } from "@/lib/env";
 import { DEFAULT_OPENAI_MODEL } from "@reels-factory/ai-script";
 
@@ -33,6 +36,8 @@ export async function GET() {
       ? process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
       : null,
     storageConfigured: hasStorageConfigured(),
-    tavilyConfigured: Boolean(process.env.TAVILY_API_KEY?.trim()),
+    tavilyConfigured: hasTavilyConfigured(),
+    tavilyAvailable: hasTavilyAvailable(),
+    tavilyMode: getTavilyStatus(),
   });
 }
