@@ -51,14 +51,19 @@ export function buildViralMockScript(
 
   const pain =
     intel?.consumerPainPoints?.[0] ??
-    "Нужно решение без компромиссов?";
+    "Опять покупаешь — и снова не то?";
   const proof =
-    intel?.socialProof ??
     pickReviewQuote(input.product) ??
+    intel?.socialProof ??
     hooks[1] ??
     hooks[0] ??
-    "Проверенное качество";
-  const hook = hooks[0] ?? input.product.title.slice(0, 40);
+    "Люди в восторге — проверено";
+  const category = input.product.category?.trim();
+  const hook =
+    hooks[0] ??
+    (category
+      ? `Если вам нужен ${category.toLowerCase()} — стоп`
+      : input.product.title.slice(0, 40));
   const offer = priceLabel
     ? `${priceLabel} · ${CTA_MAP[input.ctaType]}`
     : CTA_MAP[input.ctaType];

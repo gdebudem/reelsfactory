@@ -42,22 +42,45 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "Сценарий (OpenAI)",
     description:
       "Инструкция для GPT при написании 4 сцен Hook→Pain→Proof→CTA. Плейсхолдер {{tone}} подставляется по типу ролика.",
-    defaultContent: `Ты копирайтер вирусных product Reels (15 сек, 9:16). Язык: русский. Тон: {{tone}}.
+    defaultContent: `Ты сценарист ВИРУСНЫХ product Reels (15 сек, 9:16). Язык: русский. Тон: {{tone}}.
 
-Формула Hook → Pain → Proof → Offer+CTA (ровно 4 сцены):
-1. hook (0–3.75с): остановить скролл, вопрос или интрига, макс 8 слов
-2. pain (3.75–7.5с): боль покупателя, эмпатия, макс 8 слов
-3. proof (7.5–11.25с): факт/цифра + social proof или цитата отзыва, макс 10 слов
-4. cta (11.25–15с): цена + призыв, макс 8 слов
+Главная цель: ТАРГЕТИРОВАННЫЙ ролик, который ЗАЛЕТАЕТ — смешной, классный, с мощным хуком в первые 1.5 сек. Не реклама из буклета, а креатив, который хочется досмотреть и переслать.
 
-Правила:
-- ТОЛЬКО факты из productIntel и productData. Не выдумывай.
+═══ ХУК (самое важное) ═══
+Первый кадр решает всё. Выбери ОДИН паттерн под ЦА из reelType + category + userHighlights:
+• «Если вы [боль ЦА] — стоп» — прямой таргет
+• «POV: вы наконец нашли…» — relatable
+• «Почему все берут X, а вы нет?» — curiosity gap
+• «Стоп. Это не реклама» / «Серьёзно?» — pattern interrupt
+• Цифра + интрига: «4.9★ и вот почему»
+• Контраст: «Дорого? Смотрите цену»
+• «3 секунды — и вы поймёте» — open loop (ответ только в proof)
+
+Хук = headline = scenes[0].text. Должен бить в конкретную аудиторию, а не «для всех».
+
+═══ ТАРГЕТИНГ ═══
+Сузь ролик под ЦА: кто покупает этот товар, какая у них боль, какой мем-язык им зайдёт.
+Используй: productData.category, brand, reelType, userHighlights, consumerPainPoints из intel.
+Один ролик = одна аудитория = одна боль = один хук. Не размывай.
+
+═══ Формула Hook → Pain → Proof → Offer+CTA (4 сцены) ═══
+1. hook (0–3.75с): scroll-stop, таргет + интрига/юмор, макс 8 слов, open loop
+2. pain (3.75–7.5с): «это про меня» для ЦА, с иронией, макс 8 слов
+3. proof (7.5–11.25с): закрывает loop — факт/отзыв/рейтинг, макс 10 слов
+4. cta (11.25–15с): цена + призыв, энергия FOMO, макс 8 слов
+
+═══ Чтобы залетал ═══
+- Каждая сцена — новый удар, не повторяй формулировки
+- Юмор от фактов: цена, отзыв, характеристика — не выдумывай
+- subheadline усиливает хук; bullets — 2–3 коротких «почему зайдёт ЦА»
+- reviewQuote — реальный отзыв; смешной/эмоциональный приоритет
+- Без токсичности, кринжа, fake urgency, выдуманных обещаний
+
+Техника:
 - templateId: "viral_v1"
-- musicMood: energetic | trust | premium (по типу ролика)
+- musicMood: energetic | trust | premium
 - musicTrackId: upbeat_drive | steady_groove | smooth_pulse
-- scenes: ровно 4, imageIndex 0–3 (разные фото товара)
-- style: hook | pain | proof | cta
-- headline/subheadline/bullets/reviewQuote — для UI, согласуй с сценами
+- scenes: ровно 4, imageIndex 0–3, style: hook | pain | proof | cta
 
 Верни ТОЛЬКО валидный JSON.`,
   },
@@ -66,10 +89,23 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     label: "Intel — system prompt",
     stage: "Исследование (OpenAI)",
     description: "Синтез фактов о товаре из Tavily, маркетплейсов и страницы.",
-    defaultContent: `Ты аналитик товаров для рекламных роликов.
-Извлекай ТОЛЬКО факты из snippets, marketplaceListings и productData. Запрещено выдумывать характеристики.
-Приоритет: отзывы и цены с Ozon, Wildberries, М.Видео, Яндекс Маркет.
-Верни JSON: externalSnippets (цитаты до 120 символов), marketplaceReviews (platform + quote + rating), consumerPainPoints, rankedSellingPoints (топ-5 выгод), socialProof, researchSources (URL).`,
+    defaultContent: `Ты аналитик товаров для ВИРУСНЫХ таргетированных Reels.
+Извлекай ТОЛЬКО факты из snippets, marketplaceListings и productData. Не выдумывай.
+
+Цель intel — дать сценаристу всё для ХУКА и ТАРГЕТА, чтобы ролик залетел:
+
+1. consumerPainPoints (топ-3): боли КОНКРЕТНОЙ ЦА — язык TikTok («устал от…», «зачем переплачивать…», «опять разочарование»)
+2. rankedSellingPoints (топ-5): не сухие specs, а hook-ready выгоды — цифры, контрасты, «вау за эту цену»
+3. socialProof: рейтинг, число отзывов — готово для хука «4.9★ и вот почему»
+4. marketplaceReviews: смешные/эмоциональные цитаты дословно (до 120 симв.) — для proof и reviewQuote
+5. externalSnippets: факты, которые бьют в ЦА и отличают от конкурентов
+
+Таргетинг: по category и отзывам определи, КТО покупает и ЧТО их триггерит (выгода / боль / статус / лень / страх ошибки).
+Формулируй pain points и selling points так, чтобы из них можно было собрать scroll-stop хук за 3 секунды.
+
+Приоритет: Ozon, Wildberries, М.Видео, Яндекс Маркет.
+
+Верни JSON: externalSnippets, marketplaceReviews (platform + quote + rating), consumerPainPoints, rankedSellingPoints (топ-5), socialProof, researchSources (URL).`,
   },
   {
     id: "scene_reference_prefix",
@@ -77,7 +113,7 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "AI-картинки",
     description: "Префикс при редактировании по фото товара.",
     defaultContent:
-      "Use the attached product photo as the hero subject. Preserve product shape, colors, and branding accurately.\nPlace it inside a new premium ad environment — do not replace the product with a generic lookalike.",
+      "Use the attached product photo as the hero subject. Preserve product shape, colors, and branding.\nPlace it in a bold, meme-worthy TikTok ad set — expressive, not boring catalog. Product stays real; background gets personality.",
   },
   {
     id: "scene_type_line",
@@ -85,7 +121,7 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "AI-картинки",
     description: "Первая строка промпта генерации кадра.",
     defaultContent:
-      "TYPE: Award-winning Russian social commerce static ad, 9:16 vertical mobile screen, ultra high-end DTC creative.",
+      "TYPE: Viral targeted Russian product Reels frame, 9:16 mobile — scroll-stopping hook visual, funny, premium-cool, algorithm-native, not corporate ad.",
   },
   {
     id: "scene_background",
@@ -93,7 +129,7 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "AI-картинки",
     description: "Секция BACKGROUND.",
     defaultContent:
-      "Premium gradient studio backdrop, subtle depth, no clutter, magazine-quality color grading.",
+      "Dynamic gradient or playful studio set, subtle props that support the joke/mood, vibrant but clean — TikTok ad energy, not sterile white box.",
   },
   {
     id: "scene_subject",
@@ -104,7 +140,7 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     defaultContent: `Photorealistic product: "{{product_title}}".
 {{brand_line}}
 {{price_line}}
-Product must look sharp, realistic, desirable — studio product photography quality.`,
+Product looks sharp and desirable — hero shot with personality, slight dramatic angle, «this is the one» energy.`,
   },
   {
     id: "scene_text_rules",
@@ -114,7 +150,7 @@ Product must look sharp, realistic, desirable — studio product photography qua
       "Правила текста на изображении. Плейсхолдеры: {{scene_text}}, {{emphasis_line}}.",
     defaultContent: `"{{scene_text}}"
 {{emphasis_line}}
-Spell Cyrillic correctly. No English UI. No random extra words.`,
+Hook text dominates frame — extra-bold meme Cyrillic, high contrast, readable in 0.3 sec on mobile feed. Spell correctly. No English clutter.`,
   },
   {
     id: "scene_composition",
@@ -122,7 +158,7 @@ Spell Cyrillic correctly. No English UI. No random extra words.`,
     stage: "AI-картинки",
     description: "Секция COMPOSITION.",
     defaultContent:
-      "Rule of thirds, professional ad layout, 8% safe margins, text never cropped.",
+      "Hook-first TikTok layout: headline is the star, product supports the hook, 8% safe margins, reads in 0.3 sec on feed scroll.",
   },
   {
     id: "scene_constraints",
@@ -130,43 +166,43 @@ Spell Cyrillic correctly. No English UI. No random extra words.`,
     stage: "AI-картинки",
     description: "Секция CONSTRAINTS.",
     defaultContent:
-      "Photorealistic only. No watermarks. No logos except product brand.\nNo blurry text, no distorted product, no cheap clip art, no stock-photo feel.\nNo misspelled Russian, no gibberish letters, no duplicate headlines.\nOutput must look like a $5000 agency static ad frame, not AI slop.",
+      "Photorealistic product. No watermarks. No fake logos.\nExpressive and fun — not stock-photo bland, not AI slop, not cheap clip art.\nPerfect Cyrillic on overlay text. Must feel like a viral product meme ad, not a boring banner.",
   },
   {
     id: "scene_blueprint_hook",
     label: "Кадр Hook",
     stage: "AI-картинки",
     description: "Blueprint для сцены hook.",
-    defaultContent: `FRAME ROLE: Viral Reels HOOK — scroll-stopping first frame.
-COMPOSITION: Product hero in lower 45%, headline in upper third, generous safe margins (8%).
-MOOD: Pattern interrupt, curiosity, “stop scrolling” energy.`,
+    defaultContent: `FRAME ROLE: HOOK — scroll-stop, таргетированный, «залетает» с первого кадра.
+COMPOSITION: Giant hook text upper 35% (biggest element on screen), product lower 40%, visual tension — viewer MUST pause thumb.
+MOOD: Pattern interrupt — surprise, curiosity, cool confidence, subtle humor. Feels like viral TikTok hook, not banner ad.`,
   },
   {
     id: "scene_blueprint_pain",
     label: "Кадр Pain",
     stage: "AI-картинки",
     description: "Blueprint для сцены pain.",
-    defaultContent: `FRAME ROLE: PAIN — empathize with buyer frustration.
-COMPOSITION: Product smaller (30%), emotional headline dominant, moody negative space.
-MOOD: Relatable problem, tension before solution, cinematic desaturation.`,
+    defaultContent: `FRAME ROLE: PAIN — relatable struggle (with humor).
+COMPOSITION: Product smaller, emotional headline dominates, exaggerated «before» mood in background.
+MOOD: «Блин, это же про меня» — ironic, empathetic, not depressing.`,
   },
   {
     id: "scene_blueprint_proof",
     label: "Кадр Proof",
     stage: "AI-картинки",
     description: "Blueprint для сцены proof.",
-    defaultContent: `FRAME ROLE: PROOF — trust and social validation.
-COMPOSITION: Product detail or hero 40%, proof line as quote/stat badge, bright confident layout.
-MOOD: Credibility, relief, “this works” confidence.`,
+    defaultContent: `FRAME ROLE: PROOF — «окей, это реально работает».
+COMPOSITION: Product hero 45%, quote/stat badge, brighter confident palette.
+MOOD: Satisfied smirk energy, trust + delight, «наконец-то нормальная вещь».`,
   },
   {
     id: "scene_blueprint_cta",
     label: "Кадр CTA",
     stage: "AI-картинки",
     description: "Blueprint для сцены cta.",
-    defaultContent: `FRAME ROLE: CTA — conversion and urgency.
-COMPOSITION: Product + price block, prominent CTA strip at bottom third, offer hierarchy.
-MOOD: Urgency, clarity, ready to buy.`,
+    defaultContent: `FRAME ROLE: CTA — «беру, пока не разобрали».
+COMPOSITION: Product + bold price, CTA strip bottom third, urgency without panic.
+MOOD: Fun FOMO, clear next step, celebratory micro-win.`,
   },
   {
     id: "scene_mood_energetic_palette",
@@ -174,7 +210,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Цветовая палитра для mood=energetic.",
     defaultContent:
-      "deep indigo (#1e1b4b) flowing into electric violet (#7c3aed), hot coral accent (#fb7185)",
+      "electric violet (#7c3aed) to hot pink (#ec4899), neon coral punch (#fb7185), high saturation TikTok palette",
   },
   {
     id: "scene_mood_energetic_lighting",
@@ -182,7 +218,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Освещение для mood=energetic.",
     defaultContent:
-      "crisp studio key light, vibrant rim glow, high-contrast TikTok commercial energy",
+      "punchy rim light, crisp key, slight lens flare sparkle — hype commercial, meme-ad bright",
   },
   {
     id: "scene_mood_energetic_typography",
@@ -190,7 +226,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Типографика для mood=energetic.",
     defaultContent:
-      "bold geometric sans-serif Cyrillic, white with soft violet glow, kinetic poster style",
+      "extra-bold rounded Cyrillic sans, white with pink/violet glow, sticker/meme poster vibe",
   },
   {
     id: "scene_mood_trust_palette",
@@ -198,7 +234,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Цветовая палитра для mood=trust.",
     defaultContent:
-      "soft navy (#0f172a) to calm teal (#0d9488), warm off-white text, subtle grain",
+      "warm navy (#0f172a) to friendly teal (#14b8a6), cream highlights, approachable not clinical",
   },
   {
     id: "scene_mood_trust_lighting",
@@ -206,7 +242,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Освещение для mood=trust.",
     defaultContent:
-      "diffused natural daylight, clean trustworthy e-commerce photography",
+      "soft daylight, cozy UGC-meets-brand — honest review energy, warm and human",
   },
   {
     id: "scene_mood_trust_typography",
@@ -214,7 +250,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Типографика для mood=trust.",
     defaultContent:
-      "friendly rounded sans-serif Cyrillic, high readability, calm authority",
+      "friendly bold Cyrillic sans, conversational headline feel — like a mate recommending a find",
   },
   {
     id: "scene_mood_premium_palette",
@@ -222,7 +258,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Цветовая палитра для mood=premium.",
     defaultContent:
-      "charcoal black to champagne gold (#d4af37), subtle marble and velvet texture",
+      "rich black to champagne gold (#d4af37), subtle wit in luxe accents — premium but not stiff",
   },
   {
     id: "scene_mood_premium_lighting",
@@ -230,7 +266,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Освещение для mood=premium.",
     defaultContent:
-      "luxury catalog lighting, soft falloff, premium brand campaign aesthetic",
+      "cinematic product glow, soft luxury key — «дорого, но оправдано» campaign look",
   },
   {
     id: "scene_mood_premium_typography",
@@ -238,7 +274,7 @@ MOOD: Urgency, clarity, ready to buy.`,
     stage: "AI-картинки",
     description: "Типографика для mood=premium.",
     defaultContent:
-      "elegant condensed sans-serif Cyrillic, gold and ivory, high-end retail ad",
+      "elegant bold Cyrillic sans, gold/ivory contrast, confident headline with subtle playful edge",
   },
 ];
 

@@ -74,9 +74,12 @@ export async function synthesizeProductIntel(
   const system = resolvePromptText("intel_system", promptOverrides);
 
   const user = JSON.stringify({
+    viralGoal:
+      "Материал для таргетированного вирусного Reels: scroll-stop хук, боли ЦА, hook-ready выгоды",
     productData: {
       title: product.title,
       brand: product.brand,
+      category: product.category,
       price: product.price,
       currency: product.currency,
       specs: product.specs?.slice(0, 15),

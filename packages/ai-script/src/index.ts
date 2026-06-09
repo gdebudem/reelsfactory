@@ -45,11 +45,19 @@ export type {
 } from "./types";
 
 const TONE_BY_TYPE: Record<ReelType, string> = {
-  promo: "яркий, срочный, акцент на выгоде и цене",
-  new: "свежий, интригующий, ощущение новинки",
-  features: "экспертный, уверенный, перечисление преимуществ",
-  problem_solution: "эмпатия к проблеме, чёткое решение",
-  seasonal: "сезонный, тематический, праздничный тон",
+  promo: "дерзкий FOMO-мем, таргет на охотников за выгодой, хук про цену/скидку",
+  new: "интрига early adopter, хук «только что вышло / вы ещё не видели»",
+  features: "экспертный но смешной, хук «а вы знали что…» для рациональных покупателей",
+  problem_solution: "таргет на боль ЦА, хук «если у вас [проблема] — стоп»",
+  seasonal: "сезонный таргет, хук под событие/праздник, игриво и по делу",
+};
+
+const TARGET_AUDIENCE_BY_TYPE: Record<ReelType, string> = {
+  promo: "покупатели, которые сравнивают цены и любят выгоду; триггер — цена, скидка, «наконец норм»",
+  new: "любители новинок и трендов; триггер — быть первым, открыть для себя",
+  features: "рациональные покупатели; триггер — цифры, факты, «умный выбор»",
+  problem_solution: "люди с конкретной болью в категории; триггер — облегчение, «нашёл решение»",
+  seasonal: "покупатели под сезон/праздник/подарок; триггер — срочность события, тематика",
 };
 
 function formatPrice(product: ProductCard): string {
@@ -172,6 +180,10 @@ export async function generateReelScript(
     price: priceStr,
     reelType: input.reelType,
     userHighlights: input.highlights,
+    customHighlight: input.customHighlight,
+    targetAudience: TARGET_AUDIENCE_BY_TYPE[input.reelType],
+    viralGoal:
+      "Таргетированный вирусный ролик: сильный scroll-stop хук в первые 1.5 сек, смешной и классный, чтобы залетел в ленту",
     ctaType: input.ctaType,
     ctaText: CTA_MAP[input.ctaType],
     schema: {
@@ -203,7 +215,7 @@ export async function generateReelScript(
       url: "https://api.openai.com/v1/chat/completions",
       service: "OpenAI",
       target: "сценарий",
-      body: `model=${model} · json · temperature=0.65 · reelType=${input.reelType}`,
+      body: `model=${model} · json · temperature=0.75 · reelType=${input.reelType}`,
       runtime: "Vercel",
     });
 
@@ -214,7 +226,7 @@ export async function generateReelScript(
         { role: "user", content: user },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.65,
+      temperature: 0.75,
     });
 
     const content = completion.choices[0]?.message?.content;
