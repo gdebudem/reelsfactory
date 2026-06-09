@@ -12,6 +12,7 @@ import {
 } from "@reels-factory/shared";
 import { PipelineLog } from "./PipelineLog";
 import { useJobProgressPoll } from "@/hooks/useJobProgressPoll";
+import { setLastJobId } from "@/lib/last-job-id";
 
 const STEPS = [
   "Какой товар рекламируем?",
@@ -147,6 +148,7 @@ export function CreateWizard({ skipPayment = false }: Props) {
       }
 
       setJobId(data.jobId);
+      setLastJobId(data.jobId);
 
       if (data.skipPayment) {
         router.push(`/create/result/${data.jobId}`);

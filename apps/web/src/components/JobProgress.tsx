@@ -8,6 +8,7 @@ import { StoryboardLinks } from "./StoryboardLinks";
 import { StoryboardPanel } from "./StoryboardPanel";
 import { isDemoVideoUrl } from "@/lib/video";
 import { useJobProgressPoll } from "@/hooks/useJobProgressPoll";
+import { setLastJobId } from "@/lib/last-job-id";
 import {
   getActivePipelineLogMessage,
   isPreviewReadyStatus,
@@ -28,6 +29,10 @@ export function JobProgress({ jobId }: { jobId: string }) {
   const paidMarked = useRef(false);
 
   const { job, loading } = useJobProgressPoll(jobId, { renderStarted });
+
+  useEffect(() => {
+    setLastJobId(jobId);
+  }, [jobId]);
 
   useEffect(() => {
     if (paidMarked.current) return;

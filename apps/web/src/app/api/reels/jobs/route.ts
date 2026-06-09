@@ -48,10 +48,28 @@ export async function GET() {
   }
 
   const session = await getServerSession(authOptions);
-  const jobs = await prisma.reelJob.findMany({
+  const rows = await prisma.reelJob.findMany({
     where: session?.user?.id ? { userId: session.user.id } : {},
     orderBy: { createdAt: "desc" },
     take: 50,
+    select: {
+      id: true,
+      status: true,
+      reelType: true,
+      createdAt: true,
+      productJson: true,
+      _count: { select: { pipelineLogs: true } },
+    },
   });
+
+  const jobs = rows.map((row) => ({
+    id: row.id,
+    status: row.status,
+    reelType: row.reelType,
+    createdAt: row.createdAt.toISOString(),
+    productJson: row.productJson,
+    logCount: row._count.pipelineLogs,
+  }));
+
   return NextResponse.json({ jobs });
 }

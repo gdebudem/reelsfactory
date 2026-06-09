@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { PipelineLogModal } from "./PipelineLogModal";
 import { PromptsSettingsModal } from "./PromptsSettingsModal";
 
 export function Header() {
   const [promptsOpen, setPromptsOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
 
   return (
     <>
@@ -21,15 +23,31 @@ export function Header() {
             <span className="hidden sm:inline">Reels Factory</span>
           </Link>
 
-          <button
-            type="button"
-            onClick={() => setPromptsOpen(true)}
-            className="hidden rounded-lg border-2 border-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-900 transition hover:bg-slate-50 sm:inline-block"
-          >
-            Настроить промты
-          </button>
+          <div className="hidden items-center gap-2 sm:flex">
+            <button
+              type="button"
+              onClick={() => setLogOpen(true)}
+              className="rounded-lg border-2 border-cyan-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-cyan-800 transition hover:bg-cyan-50"
+            >
+              Лог
+            </button>
+            <button
+              type="button"
+              onClick={() => setPromptsOpen(true)}
+              className="rounded-lg border-2 border-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-900 transition hover:bg-slate-50"
+            >
+              Настроить промты
+            </button>
+          </div>
 
           <nav className="flex items-center gap-2 text-sm font-medium text-slate-600 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => setLogOpen(true)}
+              className="rounded-lg border-2 border-cyan-700 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-800 sm:hidden"
+            >
+              Лог
+            </button>
             <button
               type="button"
               onClick={() => setPromptsOpen(true)}
@@ -58,6 +76,8 @@ export function Header() {
           </nav>
         </div>
       </header>
+
+      <PipelineLogModal open={logOpen} onClose={() => setLogOpen(false)} />
 
       <PromptsSettingsModal
         open={promptsOpen}

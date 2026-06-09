@@ -60,6 +60,7 @@ type Props = {
   entries: PipelineLogEntry[];
   activeMessage?: string | null;
   usage?: PipelineProgress["usage"];
+  className?: string;
 };
 
 export function PipelineLog({
@@ -67,6 +68,7 @@ export function PipelineLog({
   entries,
   activeMessage,
   usage,
+  className,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -94,7 +96,10 @@ export function PipelineLog({
   return (
     <div
       id="log"
-      className="flex max-h-[calc(100vh-8rem)] min-h-[320px] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:min-h-[420px] lg:max-h-[calc(100vh-6rem)]"
+      className={
+        className ??
+        "flex max-h-[calc(100vh-8rem)] min-h-[320px] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:min-h-[420px] lg:max-h-[calc(100vh-6rem)]"
+      }
     >
       <h3 className="text-center text-2xl font-normal text-slate-800">лог</h3>
       <p className="mt-1 text-center text-xs text-slate-400">
