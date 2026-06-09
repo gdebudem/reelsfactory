@@ -33,6 +33,9 @@ export default async function DashboardPage() {
   const jobs = await prisma.reelJob.findMany({
     orderBy: { createdAt: "desc" },
     take: 30,
+    include: {
+      _count: { select: { pipelineLogs: true } },
+    },
   });
 
   return (
@@ -67,6 +70,9 @@ export default async function DashboardPage() {
                 <p className="text-sm text-slate-500">
                   {job.reelType} · {job.status} ·{" "}
                   {new Date(job.createdAt).toLocaleDateString("ru-RU")}
+                  {job._count.pipelineLogs > 0
+                    ? ` · лог: ${job._count.pipelineLogs} записей`
+                    : ""}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -85,6 +91,14 @@ export default async function DashboardPage() {
                 >
                   Открыть
                 </Link>
+                {job._count.pipelineLogs > 0 ? (
+                  <Link
+                    href={`/create/result/${job.id}#log`}
+                    className="text-sm text-cyan-700 underline"
+                  >
+                    Лог
+                  </Link>
+                ) : null}
               </div>
             </li>
           );

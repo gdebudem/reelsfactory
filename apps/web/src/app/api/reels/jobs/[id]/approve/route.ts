@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isApprovalReadyStatus } from "@reels-factory/shared";
 import { enqueueRenderJob, getQueueMode } from "@/lib/queue";
+import { persistJobLog } from "@reels-factory/pipeline-store";
 import { prisma } from "@/lib/prisma";
 import {
   envProblemResponse,
@@ -62,6 +63,7 @@ export async function POST(
     return NextResponse.json({ ok: true, status: "render_queued" });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка очереди";
+    await persistJobLog(prisma, id, `ошибка · ${message}`, "error");
     await prisma.reelJob.update({
       where: { id },
       data: { status: "failed", errorMessage: message },

@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { appendJobFailureLog } from "./jobProgress.js";
 
 const POLL_MS = Number(process.env.QUEUE_POLL_MS ?? 4000);
 
@@ -29,6 +30,7 @@ export async function startPostgresQueueWorker(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           console.error(`[worker] Image gen failed ${imageJobId}:`, message);
+          await appendJobFailureLog(prisma, imageJobId, message);
           await prisma.reelJob.update({
             where: { id: imageJobId },
             data: { status: "failed", errorMessage: message },
@@ -50,6 +52,7 @@ export async function startPostgresQueueWorker(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           console.error(`[worker] Failed ${renderJobId}:`, message);
+          await appendJobFailureLog(prisma, renderJobId, message);
           await prisma.reelJob.update({
             where: { id: renderJobId },
             data: { status: "failed", errorMessage: message },

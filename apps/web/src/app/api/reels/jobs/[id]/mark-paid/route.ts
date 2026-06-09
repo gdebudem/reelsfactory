@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  appendPipelineLog,
-  createInitialProgress,
-  parsePipelineProgress,
-} from "@reels-factory/shared";
+import { jobHasLogText, persistJobLog } from "@reels-factory/pipeline-store";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -13,29 +9,23 @@ export async function POST(
   const { id } = await params;
   const job = await prisma.reelJob.findUnique({
     where: { id },
-    select: { progressJson: true, status: true },
+    select: { status: true },
   });
 
   if (!job) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
 
-  const progress = parsePipelineProgress(
-    job.progressJson ?? createInitialProgress()
-  );
-  const alreadyLogged = progress.logs.some((l) =>
-    l.text.includes("оплата принята")
-  );
+  const alreadyLogged = await jobHasLogText(prisma, id, "оплата принята");
 
   if (!alreadyLogged) {
-    const next = appendPipelineLog(progress, "оплата принята · Stripe");
-    await prisma.reelJob.update({
-      where: { id },
-      data: {
-        status: job.status === "draft" ? "paid" : job.status,
-        progressJson: next,
-      },
-    });
+    await persistJobLog(prisma, id, "оплата принята · Stripe");
+    if (job.status === "draft") {
+      await prisma.reelJob.update({
+        where: { id },
+        data: { status: "paid" },
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });

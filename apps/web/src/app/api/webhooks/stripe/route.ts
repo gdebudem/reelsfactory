@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import {
-  appendPipelineLog,
-  createInitialProgress,
-  parsePipelineProgress,
-} from "@reels-factory/shared";
+import { jobHasLogText, persistJobLog } from "@reels-factory/pipeline-store";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 
@@ -35,20 +31,19 @@ export async function POST(req: Request) {
     const tier = session.metadata?.tier;
 
     if (reelJobId) {
-      const existing = await prisma.reelJob.findUnique({
-        where: { id: reelJobId },
-        select: { progressJson: true },
-      });
-      const progress = parsePipelineProgress(
-        existing?.progressJson ?? createInitialProgress()
+      const alreadyLogged = await jobHasLogText(
+        prisma,
+        reelJobId,
+        "оплата принята"
       );
-      const paidProgress = appendPipelineLog(progress, "оплата принята · Stripe");
+      if (!alreadyLogged) {
+        await persistJobLog(prisma, reelJobId, "оплата принята · Stripe");
+      }
 
       await prisma.reelJob.update({
         where: { id: reelJobId },
         data: {
           status: "paid",
-          progressJson: paidProgress,
           ...(tier ? { tier } : {}),
         },
       });

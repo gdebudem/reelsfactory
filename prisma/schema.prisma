@@ -76,8 +76,21 @@ model ReelJob {
   tier            String    @default("basic")
   templateId      String?
   payments        Payment[]
+  pipelineLogs    JobPipelineLog[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model JobPipelineLog {
+  id        String   @id @default(cuid())
+  reelJobId String
+  reelJob   ReelJob  @relation(fields: [reelJobId], references: [id], onDelete: Cascade)
+  at        DateTime
+  text      String   @db.Text
+  kind      String?
+  meta      Json?
+
+  @@index([reelJobId, at])
 }
 
 model SiteSettings {

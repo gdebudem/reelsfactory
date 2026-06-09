@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hydrateProgressLogs } from "@reels-factory/pipeline-store";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -12,5 +13,13 @@ export async function GET(
   if (!job) {
     return NextResponse.json({ error: "Не найдено" }, { status: 404 });
   }
-  return NextResponse.json({ job });
+
+  const progressJson = await hydrateProgressLogs(prisma, id, job.progressJson);
+
+  return NextResponse.json({
+    job: {
+      ...job,
+      progressJson,
+    },
+  });
 }

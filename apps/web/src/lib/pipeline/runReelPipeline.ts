@@ -7,6 +7,11 @@ import {
   createReelJobSchema,
   mergeWizardLogs,
 } from "@reels-factory/shared";
+import {
+  appendManyJobLogEntries,
+  persistJobLog,
+  stripLogs,
+} from "@reels-factory/pipeline-store";
 import { authOptions } from "@/lib/auth";
 import {
   envProblemResponse,
@@ -72,6 +77,9 @@ export async function runReelPipeline(
     });
   }
 
+  const initialLogs = progressJson.logs;
+  const initialMeta = stripLogs(progressJson);
+
   const job = await prisma.reelJob.create({
     data: {
       userId: session?.user?.id,
@@ -84,9 +92,11 @@ export async function runReelPipeline(
       ctaValue: data.ctaValue,
       tier: data.tier,
       status: "draft",
-      progressJson,
+      progressJson: initialMeta,
     },
   });
+
+  await appendManyJobLogEntries(prisma, job.id, initialLogs);
 
   // Storyboard (research + script) runs on worker; render waits for user approval
 
@@ -141,13 +151,10 @@ export async function runReelPipeline(
       },
     });
 
-    const checkoutProgress = appendPipelineLog(
-      progressJson,
-      "переход к оплате Stripe"
-    );
+    await persistJobLog(prisma, job.id, "переход к оплате Stripe");
     await prisma.reelJob.update({
       where: { id: job.id },
-      data: { tier: data.tier, progressJson: checkoutProgress },
+      data: { tier: data.tier },
     });
 
     if (!checkoutSession.url) {
@@ -166,13 +173,14 @@ export async function runReelPipeline(
     };
   }
 
-  const paidProgress = appendPipelineLog(
-    progressJson,
+  await persistJobLog(
+    prisma,
+    job.id,
     "оплата пропущена (SKIP_PAYMENT) · запускаем генерацию"
   );
   await prisma.reelJob.update({
     where: { id: job.id },
-    data: { status: "paid", tier: data.tier, progressJson: paidProgress },
+    data: { status: "paid", tier: data.tier },
   });
 
   return {

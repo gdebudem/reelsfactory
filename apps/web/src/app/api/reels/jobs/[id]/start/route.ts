@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { persistJobLog } from "@reels-factory/pipeline-store";
 import { prisma } from "@/lib/prisma";
 import { envProblemResponse, hasDatabaseConfigured } from "@/lib/env";
 import { runStoryboard } from "@/lib/pipeline/runStoryboard";
@@ -75,6 +76,7 @@ export async function POST(
     return NextResponse.json({ ok: true, status });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка раскадровки";
+    await persistJobLog(prisma, id, `ошибка · ${message}`, "error");
     await prisma.reelJob.update({
       where: { id },
       data: { status: "failed", errorMessage: message },

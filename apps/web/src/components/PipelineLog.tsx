@@ -92,8 +92,14 @@ export function PipelineLog({
   const hasBillingAlert = entries.some((e) => e.kind === "billing");
 
   return (
-    <div className="flex max-h-[calc(100vh-8rem)] min-h-[320px] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:min-h-[420px] lg:max-h-[calc(100vh-6rem)]">
+    <div
+      id="log"
+      className="flex max-h-[calc(100vh-8rem)] min-h-[320px] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:min-h-[420px] lg:max-h-[calc(100vh-6rem)]"
+    >
       <h3 className="text-center text-2xl font-normal text-slate-800">лог</h3>
+      <p className="mt-1 text-center text-xs text-slate-400">
+        сохраняется в базе · доступен всегда
+      </p>
 
       <p className="mt-6 text-sm text-slate-700">
         рекламируем товар :{" "}

@@ -17,6 +17,7 @@
     "@prisma/client": "^6.1.0",
     "@reels-factory/ai-script": "*",
     "@reels-factory/product-intel": "*",
+    "@reels-factory/pipeline-store": "*",
     "@reels-factory/product-parser": "*",
     "@reels-factory/shared": "*",
     "bullmq": "^5.34.5",

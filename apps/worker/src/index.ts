@@ -11,6 +11,8 @@ import { getRenderMode, renderReelToS3 } from "./render.js";
 import { hasStorageConfigured } from "./storage.js";
 import { processGenerateSceneImages } from "./generateSceneImages.js";
 import {
+  appendJobCompleteLog,
+  appendJobFailureLog,
   appendJobLog,
   ensureWorkerServiceDiagnostics,
   touchJobProgress,
@@ -121,6 +123,7 @@ async function processRender(jobId: string) {
     );
   }
   await touchJobProgress(prisma, jobId, "complete", "assemble_video");
+  await appendJobCompleteLog(prisma, jobId);
   await prisma.reelJob.update({
     where: { id: jobId },
     data: { status: "ready", videoUrl },
@@ -185,6 +188,7 @@ if (queueMode === "redis" && process.env.REDIS_URL) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[worker] Failed ${jobId}:`, message);
+        await appendJobFailureLog(prisma, jobId, message);
         await prisma.reelJob.update({
           where: { id: jobId },
           data: { status: "failed", errorMessage: message },

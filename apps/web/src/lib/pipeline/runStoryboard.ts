@@ -6,12 +6,15 @@ import type {
   ctaTypeSchema,
 } from "@reels-factory/shared";
 import {
-  appendBillingAlert,
   OPENAI_BILLING_LOG_HINT,
-  parsePipelineProgress,
   resetPipelineSteps,
   shouldRegenerateScript,
 } from "@reels-factory/shared";
+import {
+  appendManyJobLogEntries,
+  saveProgressMeta,
+  stripLogs,
+} from "@reels-factory/pipeline-store";
 import type { z } from "zod";
 import { getOpenAiModel } from "@reels-factory/ai-script";
 import { generateReelScript } from "@reels-factory/ai-script";
@@ -20,7 +23,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { loadPromptOverrides } from "@/lib/prompt-overrides";
-import { createJobProgressReporter } from "./progress";
+import { createJobProgressReporter, hydrateJobProgress } from "./progress";
 import { applyWebServiceDiagnostics } from "./service-diagnostics";
 
 export async function runStoryboard(
@@ -39,17 +42,16 @@ export async function runStoryboard(
 
   if (needsIntel) {
     const session = await getServerSession(authOptions);
-    let progress = parsePipelineProgress(
-      job.progressJson ?? { completedSteps: [], imageProgress: 0, logs: [] }
-    );
+    let progress = await hydrateJobProgress(jobId, job.progressJson);
+    const logCountBefore = progress.logs.length;
     progress = resetPipelineSteps(progress);
     progress = applyWebServiceDiagnostics(progress, session?.user?.email);
+    const newLogs = progress.logs.slice(logCountBefore);
+    await saveProgressMeta(prisma, jobId, stripLogs(progress));
+    await appendManyJobLogEntries(prisma, jobId, newLogs);
     await prisma.reelJob.update({
       where: { id: jobId },
-      data: {
-        status: "researching",
-        progressJson: progress,
-      },
+      data: { status: "researching" },
     });
 
     const research = await buildProductIntel(
@@ -93,12 +95,8 @@ export async function runStoryboard(
       await reporter.logUsage(result.usage);
     } else if (result.mock) {
       if (result.billingExceeded) {
-        const progress = await reporter.load();
-        await reporter.save(
-          appendBillingAlert(
-            progress,
-            `⚠ OpenAI биллинг (сценарий): ${result.mockReason}. ${OPENAI_BILLING_LOG_HINT}`
-          )
+        await reporter.logBilling(
+          `⚠ OpenAI биллинг (сценарий): ${result.mockReason}. ${OPENAI_BILLING_LOG_HINT}`
         );
       } else {
         await reporter.log(

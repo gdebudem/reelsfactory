@@ -1,12 +1,9 @@
 import {
   appendBillingAlert,
-  appendPipelineLog,
   appendRequestLog,
-  createInitialProgress,
   estimatePipelineCost,
   formatPipelineCostFooter,
   markPipelineStep,
-  parsePipelineProgress,
   recordOpenAiChatUsage,
   recordOpenAiImageUsage,
   recordTavilySearch,
@@ -18,6 +15,13 @@ import {
   type PipelineStepId,
   type RequestLogPayload,
 } from "@reels-factory/shared";
+import {
+  hydrateProgressLogs,
+  mutateJobProgress,
+  persistJobLog,
+  saveProgressMeta,
+  stripLogs,
+} from "@reels-factory/pipeline-store";
 import type { ResearchProgressReporter } from "@reels-factory/product-intel";
 import { prisma } from "@/lib/prisma";
 
@@ -26,18 +30,7 @@ async function loadProgress(jobId: string): Promise<PipelineProgress> {
     where: { id: jobId },
     select: { progressJson: true },
   });
-  if (!job?.progressJson) return createInitialProgress();
-  return parsePipelineProgress(job.progressJson);
-}
-
-async function saveProgress(
-  jobId: string,
-  progress: PipelineProgress
-): Promise<void> {
-  await prisma.reelJob.update({
-    where: { id: jobId },
-    data: { progressJson: progress },
-  });
+  return hydrateProgressLogs(prisma, jobId, job?.progressJson);
 }
 
 export interface JobProgressReporter extends ResearchProgressReporter {
@@ -55,49 +48,57 @@ export function createJobProgressReporter(
 ): JobProgressReporter {
   return {
     async start(stepId: PipelineStepId) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, setPipelineActiveStep(progress, stepId));
+      await mutateJobProgress(prisma, jobId, (p) =>
+        setPipelineActiveStep(p, stepId)
+      );
     },
     async complete(stepId: PipelineStepId) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, markPipelineStep(progress, stepId));
+      await mutateJobProgress(prisma, jobId, (p) =>
+        markPipelineStep(p, stepId)
+      );
     },
     async log(text: string, kind?: PipelineLogKind) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, appendPipelineLog(progress, text, kind));
+      await persistJobLog(prisma, jobId, text, kind);
     },
     async logUsage(entry: Omit<OpenAiChatUsageEntry, "at">) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, recordOpenAiChatUsage(progress, entry));
+      await mutateJobProgress(prisma, jobId, (p) =>
+        recordOpenAiChatUsage(p, entry)
+      );
     },
     async logImageUsage(entry: Omit<OpenAiImageUsageEntry, "at">) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, recordOpenAiImageUsage(progress, entry));
+      await mutateJobProgress(prisma, jobId, (p) =>
+        recordOpenAiImageUsage(p, entry)
+      );
     },
     async logBilling(text, meta) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, appendBillingAlert(progress, text, meta));
+      await mutateJobProgress(prisma, jobId, (p) =>
+        appendBillingAlert(p, text, meta)
+      );
     },
     async logCostSummary() {
       const progress = await loadProgress(jobId);
       const summary = estimatePipelineCost(progress.usage);
       const footer = formatPipelineCostFooter(summary);
       if (!footer) return;
-      await saveProgress(
+      await persistJobLog(
+        prisma,
         jobId,
-        appendPipelineLog(progress, `итого за job · ${footer}`, "usage")
+        `итого за job · ${footer}`,
+        "usage"
       );
     },
     async logTavilySearch(query?: string) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, recordTavilySearch(progress, query));
+      await mutateJobProgress(prisma, jobId, (p) =>
+        recordTavilySearch(p, query)
+      );
     },
     async logRequest(payload: RequestLogPayload) {
-      const progress = await loadProgress(jobId);
-      await saveProgress(jobId, appendRequestLog(progress, payload));
+      await mutateJobProgress(prisma, jobId, (p) =>
+        appendRequestLog(p, payload)
+      );
     },
     async save(progress: PipelineProgress) {
-      await saveProgress(jobId, progress);
+      await saveProgressMeta(prisma, jobId, stripLogs(progress));
     },
     async load() {
       return loadProgress(jobId);
@@ -105,3 +106,9 @@ export function createJobProgressReporter(
   };
 }
 
+export async function hydrateJobProgress(
+  jobId: string,
+  rawProgress?: unknown
+): Promise<PipelineProgress> {
+  return hydrateProgressLogs(prisma, jobId, rawProgress);
+}
