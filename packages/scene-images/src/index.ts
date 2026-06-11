@@ -13,6 +13,10 @@ import {
   OPENAI_BILLING_LOG_HINT,
 } from "@reels-factory/shared";
 import { buildSceneImagePrompt } from "./prompts.js";
+import {
+  fetchImageBuffer,
+  PLACEHOLDER_IMAGE_URL,
+} from "./fetch-image.js";
 
 export type SceneImageUploader = (
   key: string,
@@ -32,11 +36,77 @@ export type GenerateSceneImagesResult = {
   fallbackReason?: string;
 };
 
-async function completeFallbackProgress(
-  onProgress: SceneImageProgress | undefined,
-  count: number
-) {
-  for (let i = 0; i < count; i++) {
+async function storeSceneImage(
+  jobId: string,
+  sceneIndex: number,
+  buffer: Buffer,
+  contentType: string,
+  upload: SceneImageUploader
+): Promise<string> {
+  const ext = contentType.includes("png") ? "png" : "jpg";
+  const key = `scene-images/${jobId}/scene-${sceneIndex}.${ext}`;
+  try {
+    return await upload(key, buffer, contentType);
+  } catch (uploadErr) {
+    console.warn(
+      `[scene-images] Upload failed scene ${sceneIndex + 1}, data URL:`,
+      uploadErr
+    );
+    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  }
+}
+
+async function buildProductPhotoFallback(
+  jobId: string,
+  product: ProductCard,
+  script: ReelScript,
+  upload: SceneImageUploader,
+  onProgress?: SceneImageProgress,
+  reason?: string
+): Promise<GenerateSceneImagesResult> {
+  const results: SceneImage[] = [];
+
+  for (let i = 0; i < 4; i++) {
+    const scene = script.scenes[i]!;
+    await onProgress?.(i, "start");
+
+    const idx = scene.imageIndex ?? i;
+    const sourceUrl =
+      product.images[idx % Math.max(product.images.length, 1)] ??
+      product.images[0] ??
+      PLACEHOLDER_IMAGE_URL;
+
+    let imageUrl = PLACEHOLDER_IMAGE_URL;
+    try {
+      const { buffer, contentType } = await fetchImageBuffer(sourceUrl);
+      imageUrl = await storeSceneImage(jobId, i, buffer, contentType, upload);
+    } catch (err) {
+      console.warn(
+        `[scene-images] Fallback fetch failed scene ${i + 1}:`,
+        err instanceof Error ? err.message : err
+      );
+      try {
+        const placeholder = await fetchImageBuffer(PLACEHOLDER_IMAGE_URL);
+        imageUrl = await storeSceneImage(
+          jobId,
+          i,
+          placeholder.buffer,
+          placeholder.contentType,
+          upload
+        );
+      } catch {
+        /* keep public placeholder URL */
+      }
+    }
+
+    results.push({
+      sceneIndex: i,
+      style: scene.style,
+      text: scene.text,
+      imageUrl,
+      prompt: "fallback:product-photo",
+    });
+
     await onProgress?.(i, "complete", {
       model: "fallback",
       quality: "product-photo",
@@ -44,42 +114,12 @@ async function completeFallbackProgress(
       mode: "fallback",
     });
   }
-}
 
-async function buildProductPhotoFallback(
-  product: ProductCard,
-  script: ReelScript,
-  onProgress?: SceneImageProgress,
-  reason?: string
-): Promise<GenerateSceneImagesResult> {
-  const scenes = sceneImagesSchema.parse(fallbackFromProduct(product, script));
-  await completeFallbackProgress(onProgress, scenes.length);
   return {
-    scenes,
+    scenes: sceneImagesSchema.parse(results),
     usedProductPhotoFallback: true,
     fallbackReason: reason,
   };
-}
-
-function fallbackFromProduct(
-  product: ProductCard,
-  script: ReelScript
-): SceneImage[] {
-  return script.scenes.slice(0, 4).map((scene, i) => {
-    const idx = scene.imageIndex ?? i;
-    const imageUrl =
-      product.images[idx % Math.max(product.images.length, 1)] ??
-      product.images[0] ??
-      "https://placehold.co/720x1280/312e81/ffffff/png?text=Scene";
-
-    return {
-      sceneIndex: i,
-      style: scene.style,
-      text: scene.text,
-      imageUrl,
-      prompt: "fallback:product-photo",
-    };
-  });
 }
 
 export async function generateSceneImages(
@@ -105,8 +145,10 @@ export async function generateSceneImages(
       `[scene-images] MOCK/fallback — using product photos for job ${jobId}`
     );
     return buildProductPhotoFallback(
+      jobId,
       product,
       script,
+      upload,
       onProgress,
       "картинки · фото с сайта (MOCK_SCENE_IMAGES или нет OPENAI_API_KEY)"
     );
@@ -149,8 +191,10 @@ export async function generateSceneImages(
           detail
         );
         return buildProductPhotoFallback(
+          jobId,
           product,
           script,
+          upload,
           onProgress,
           `⚠ OpenAI биллинг: ${describeOpenAiCapacityError(err)}. Картинки — фото с сайта. ${OPENAI_BILLING_LOG_HINT}`
         );
@@ -160,16 +204,7 @@ export async function generateSceneImages(
 
     const key = `scene-images/${jobId}/scene-${i}.png`;
 
-    let imageUrl: string;
-    try {
-      imageUrl = await upload(key, buffer, "image/png");
-    } catch (uploadErr) {
-      console.warn(
-        `[scene-images] Upload failed, using data URL for scene ${i}:`,
-        uploadErr
-      );
-      imageUrl = `data:image/png;base64,${buffer.toString("base64")}`;
-    }
+    let imageUrl = await storeSceneImage(jobId, i, buffer, "image/png", upload);
 
     const promptPreview = buildSceneImagePrompt(
       product,
@@ -199,3 +234,4 @@ export {
   buildVisualSeriesBrief,
 } from "./prompts.js";
 export { generateSceneImageBuffer, getImageModel } from "./generate.js";
+export { fetchImageBuffer, PLACEHOLDER_IMAGE_URL } from "./fetch-image.js";

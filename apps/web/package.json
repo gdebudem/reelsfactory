@@ -19,6 +19,7 @@
     "@reels-factory/product-intel": "*",
     "@reels-factory/pipeline-store": "*",
     "@reels-factory/product-parser": "*",
+    "@reels-factory/scene-images": "*",
     "@reels-factory/shared": "*",
     "bullmq": "^5.34.5",
     "ioredis": "^5.4.2",

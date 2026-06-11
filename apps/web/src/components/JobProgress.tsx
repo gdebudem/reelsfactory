@@ -187,7 +187,10 @@ export function JobProgress({ jobId }: { jobId: string }) {
                 productUrl={job.productUrl}
                 intel={intel}
               />
-              <GeneratedScenesPanel scenes={job.sceneImagesJson} />
+              <GeneratedScenesPanel
+                jobId={jobId}
+                scenes={job.sceneImagesJson}
+              />
             </>
           ) : null}
 
@@ -276,7 +279,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
           Следите за прогрессом в логе справа
         </p>
         {(job.sceneImagesJson?.length ?? 0) >= 4 ? (
-          <GeneratedScenesPanel scenes={job.sceneImagesJson!} />
+          <GeneratedScenesPanel jobId={jobId} scenes={job.sceneImagesJson!} />
         ) : null}
       </div>
       {logPanel}
