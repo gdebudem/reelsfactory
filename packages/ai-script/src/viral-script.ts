@@ -5,7 +5,7 @@ import {
   type ReelScript,
 } from "@reels-factory/shared";
 import type { GenerateScriptInput } from "./types";
-import { pickReviewQuote, rankConsumerHooks } from "./product-hooks";
+import { pickReviewQuote, rankConsumerHooks, enrichScriptWithReviews } from "./product-hooks";
 
 const CTA_MAP = {
   website: "На сайт",
@@ -47,13 +47,14 @@ export function buildViralMockScript(
   const priceLabel = formatPrice(input.product);
   const hooks = intel?.rankedSellingPoints?.length
     ? intel.rankedSellingPoints
-    : rankConsumerHooks(input.product, input.highlights);
+    : rankConsumerHooks(input.product, input.highlights, intel);
 
   const pain =
     intel?.consumerPainPoints?.[0] ??
     "Опять покупаешь — и снова не то?";
+  const reviewQuote = pickReviewQuote(input.product, intel);
   const proof =
-    pickReviewQuote(input.product) ??
+    reviewQuote?.replace(/^«|»$/g, "").slice(0, 56) ??
     intel?.socialProof ??
     hooks[1] ??
     hooks[0] ??
@@ -70,12 +71,13 @@ export function buildViralMockScript(
 
   const mood = pickMusicMood(input.reelType);
 
-  return reelScriptSchema.parse({
+  return enrichScriptWithReviews(
+    reelScriptSchema.parse({
     headline: hook.slice(0, 40).toUpperCase(),
     subheadline: pain.slice(0, 60),
     priceLabel: priceLabel || undefined,
     ctaText: CTA_MAP[input.ctaType],
-    reviewQuote: pickReviewQuote(input.product),
+    reviewQuote,
     bullets: hooks.slice(0, 3),
     templateId: "viral_v1",
     musicMood: mood,
@@ -110,5 +112,8 @@ export function buildViralMockScript(
         imageIndex: 3,
       },
     ],
-  });
+  }),
+    input.product,
+    intel
+  );
 }

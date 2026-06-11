@@ -63,6 +63,16 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
 Используй: productData.category, brand, reelType, userHighlights, consumerPainPoints из intel.
 Один ролик = одна аудитория = одна боль = один хук. Не размывай.
 
+═══ ОТЗЫВЫ (обязательно, если есть reviewContext) ═══
+Смотри reviewContext.topReviews, productIntel.marketplaceReviews, productData.reviews.
+- Если hasReviews=true — сценарий ОБЯЗАН опираться на реальные отзывы покупателей
+- hook: можно рейтинг/socialProof («4.9★ — вот почему»)
+- pain: узнаваемая боль из отзывов и consumerPainPoints (что раздражало ДО покупки)
+- proof (scenes[2]): цитата или суть лучшего отзыва — reviewContext.bestReviewQuote или topReviews[0]; живой язык покупателя, макс 10 слов
+- reviewQuote: дословная цитата из topReviews (до 70 символов, в «кавычках»)
+- bullets: 1–2 пункта, перефразирующие похвалу из отзывов
+- Не выдумывай отзывы — только из reviewContext и intel
+
 ═══ Формула Hook → Pain → Proof → Offer+CTA (4 сцены) ═══
 1. hook (0–3.75с): scroll-stop, таргет + интрига/юмор, макс 8 слов, open loop
 2. pain (3.75–7.5с): «это про меня» для ЦА, с иронией, макс 8 слов
@@ -72,8 +82,8 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
 ═══ Чтобы залетал ═══
 - Каждая сцена — новый удар, не повторяй формулировки
 - Юмор от фактов: цена, отзыв, характеристика — не выдумывай
-- subheadline усиливает хук; bullets — 2–3 коротких «почему зайдёт ЦА»
-- reviewQuote — реальный отзыв; смешной/эмоциональный приоритет
+- subheadline усиливает хук; bullets — 2–3 коротких «почему зайдёт ЦА», включая мысли из отзывов
+- reviewQuote — реальный отзыв из reviewContext; proof-сцена должна звучать как покупатель
 - Без токсичности, кринжа, fake urgency, выдуманных обещаний
 
 Техника:
@@ -97,8 +107,9 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
 1. consumerPainPoints (топ-3): боли КОНКРЕТНОЙ ЦА — язык TikTok («устал от…», «зачем переплачивать…», «опять разочарование»)
 2. rankedSellingPoints (топ-5): не сухие specs, а hook-ready выгоды — цифры, контрасты, «вау за эту цену»
 3. socialProof: рейтинг, число отзывов — готово для хука «4.9★ и вот почему»
-4. marketplaceReviews: смешные/эмоциональные цитаты дословно (до 120 симв.) — для proof и reviewQuote
-5. externalSnippets: факты, которые бьют в ЦА и отличают от конкурентов
+4. marketplaceReviews: смешные/эмоциональные цитаты дословно (до 120 симв.) — главный источник для proof-сцены и reviewQuote в сценарии
+5. externalSnippets: факты и цитаты покупателей, которые бьют в ЦА
+6. reviewsFromPage: не игнорируй — объедини с marketplaceReviews для сценариста
 
 Таргетинг: по category и отзывам определи, КТО покупает и ЧТО их триггерит (выгода / боль / статус / лень / страх ошибки).
 Формулируй pain points и selling points так, чтобы из них можно было собрать scroll-stop хук за 3 секунды.

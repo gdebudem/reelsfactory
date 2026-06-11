@@ -13,6 +13,8 @@ import type { z } from "zod";
 import OpenAI from "openai";
 import {
   buildProductContext,
+  buildReviewContextForScript,
+  enrichScriptWithReviews,
   pickReviewQuote,
   rankConsumerHooks,
 } from "./product-hooks";
@@ -36,7 +38,7 @@ export function getOpenAiModel() {
   return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
 }
 
-export { buildProductContext, rankConsumerHooks, pickReviewQuote } from "./product-hooks";
+export { buildProductContext, rankConsumerHooks, pickReviewQuote, collectReviewsForScript, buildReviewContextForScript, enrichScriptWithReviews } from "./product-hooks";
 export { buildViralMockScript } from "./viral-script";
 export type {
   GenerateScriptInput,
@@ -81,9 +83,9 @@ export function buildMockScript(input: GenerateScriptInput): ReelScript {
   const hooks = rankConsumerHooks(input.product, [
     ...input.highlights,
     ...(input.customHighlight ? [input.customHighlight] : []),
-  ]);
+  ], input.productIntel);
   const bullets = hooks.slice(0, 3);
-  const reviewQuote = pickReviewQuote(input.product);
+  const reviewQuote = pickReviewQuote(input.product, input.productIntel);
   const hook1 = bullets[0] ?? "Качество, которому доверяют";
   const hook2 = bullets[1] ?? input.product.title.slice(0, 50);
   const templateId =
@@ -164,14 +166,15 @@ export async function generateReelScript(
     maxRetries: 1,
   });
   const priceStr = formatPrice(input.product);
-  const productData = buildProductContext(input.product);
   const intel = input.productIntel;
+  const productData = buildProductContext(input.product, intel);
+  const reviewContext = buildReviewContextForScript(input.product, intel);
   const suggestedHooks = intel?.rankedSellingPoints?.length
     ? intel.rankedSellingPoints
     : rankConsumerHooks(input.product, [
         ...input.highlights,
         ...(input.customHighlight ? [input.customHighlight] : []),
-      ]);
+      ], intel);
 
   const system = resolvePromptText("script_system", promptOverrides, {
     tone: TONE_BY_TYPE[input.reelType],
@@ -180,6 +183,7 @@ export async function generateReelScript(
   const user = JSON.stringify({
     productData,
     productIntel: intel,
+    reviewContext,
     suggestedHooks,
     price: priceStr,
     reelType: input.reelType,
@@ -257,7 +261,9 @@ export async function generateReelScript(
       templateId: "viral_v1",
     });
     return {
-      script: normalizeViralScenes(script),
+      script: normalizeViralScenes(
+        enrichScriptWithReviews(script, input.product, intel)
+      ),
       usage,
     };
   } catch (err) {
