@@ -6,6 +6,7 @@ import {
   estimatePipelineCost,
   formatPipelineCostFooter,
   markPipelineStep,
+  parsePipelineProgress,
   recordOpenAiImageUsage,
   setPipelineActiveStep,
   type OpenAiImageUsageEntry,
@@ -21,6 +22,17 @@ import {
 } from "@reels-factory/pipeline-store";
 import { applyWorkerServiceDiagnostics } from "./service-diagnostics.js";
 
+async function safePersist(
+  label: string,
+  fn: () => Promise<void>
+): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    console.warn(`[worker] ${label}:`, err instanceof Error ? err.message : err);
+  }
+}
+
 async function loadProgress(
   prisma: PrismaClient,
   jobId: string
@@ -29,11 +41,16 @@ async function loadProgress(
     where: { id: jobId },
     select: { progressJson: true },
   });
-  return hydrateProgressLogs(
-    prisma,
-    jobId,
-    job?.progressJson ?? createInitialProgress()
-  );
+  const raw = job?.progressJson ?? createInitialProgress();
+  try {
+    return await hydrateProgressLogs(prisma, jobId, raw);
+  } catch (err) {
+    console.warn(
+      "[worker] JobPipelineLog unavailable, using progressJson:",
+      err instanceof Error ? err.message : err
+    );
+    return parsePipelineProgress(raw);
+  }
 }
 
 export async function ensureWorkerServiceDiagnostics(
@@ -48,7 +65,9 @@ export async function ensureWorkerServiceDiagnostics(
   const logCountBefore = progress.logs.length;
   const next = applyWorkerServiceDiagnostics(progress);
   for (const entry of next.logs.slice(logCountBefore)) {
-    await persistJobLog(prisma, jobId, entry.text, entry.kind, entry.meta);
+    await safePersist("service diagnostics log", () =>
+      persistJobLog(prisma, jobId, entry.text, entry.kind, entry.meta)
+    );
   }
 }
 
@@ -59,7 +78,9 @@ export async function appendJobLog(
   kind: PipelineLogKind = "info",
   meta?: Record<string, unknown>
 ): Promise<void> {
-  await persistJobLog(prisma, jobId, text, kind, meta);
+  await safePersist("append job log", () =>
+    persistJobLog(prisma, jobId, text, kind, meta)
+  );
 }
 
 export async function appendJobRequestLog(
@@ -67,7 +88,9 @@ export async function appendJobRequestLog(
   jobId: string,
   payload: RequestLogPayload
 ): Promise<void> {
-  await mutateJobProgress(prisma, jobId, (p) => appendRequestLog(p, payload));
+  await safePersist("request log", () =>
+    mutateJobProgress(prisma, jobId, (p) => appendRequestLog(p, payload))
+  );
 }
 
 export async function appendJobBillingLog(
@@ -76,8 +99,10 @@ export async function appendJobBillingLog(
   text: string,
   meta?: Record<string, unknown>
 ): Promise<void> {
-  await mutateJobProgress(prisma, jobId, (p) =>
-    appendBillingAlert(p, text, meta)
+  await safePersist("billing log", () =>
+    mutateJobProgress(prisma, jobId, (p) =>
+      appendBillingAlert(p, text, meta)
+    )
   );
 }
 
@@ -90,11 +115,8 @@ export async function appendJobCostSummary(
   if (summary.totalUsd <= 0 && summary.chatTotal === 0) return;
   const footer = formatPipelineCostFooter(summary);
   if (!footer) return;
-  await persistJobLog(
-    prisma,
-    jobId,
-    `итого за job · ${footer}`,
-    "usage"
+  await safePersist("cost summary", () =>
+    persistJobLog(prisma, jobId, `итого за job · ${footer}`, "usage")
   );
 }
 
@@ -103,8 +125,10 @@ export async function appendJobImageUsage(
   jobId: string,
   entry: Omit<OpenAiImageUsageEntry, "at">
 ): Promise<void> {
-  await mutateJobProgress(prisma, jobId, (p) =>
-    recordOpenAiImageUsage(p, entry)
+  await safePersist("image usage", () =>
+    mutateJobProgress(prisma, jobId, (p) =>
+      recordOpenAiImageUsage(p, entry)
+    )
   );
 }
 
@@ -113,19 +137,27 @@ export async function appendJobFailureLog(
   jobId: string,
   message: string
 ): Promise<void> {
-  await persistJobLog(prisma, jobId, `ошибка · ${message}`, "error");
+  await safePersist("failure log", () =>
+    persistJobLog(prisma, jobId, `ошибка · ${message}`, "error")
+  );
 }
 
 export async function appendJobCompleteLog(
   prisma: PrismaClient,
   jobId: string
 ): Promise<void> {
-  const has = await prisma.jobPipelineLog.findFirst({
-    where: { reelJobId: jobId, text: { contains: "pipeline завершён" } },
-    select: { id: true },
-  });
-  if (has) return;
-  await persistJobLog(prisma, jobId, "pipeline завершён · видео готово", "info");
+  try {
+    const has = await prisma.jobPipelineLog.findFirst({
+      where: { reelJobId: jobId, text: { contains: "pipeline завершён" } },
+      select: { id: true },
+    });
+    if (has) return;
+  } catch {
+    /* table may be missing during migration */
+  }
+  await safePersist("complete log", () =>
+    persistJobLog(prisma, jobId, "pipeline завершён · видео готово", "info")
+  );
 }
 
 export async function touchJobProgress(
@@ -134,9 +166,11 @@ export async function touchJobProgress(
   mode: "start" | "complete",
   stepId: PipelineStepId
 ): Promise<void> {
-  await mutateJobProgress(prisma, jobId, (p) =>
-    mode === "start"
-      ? setPipelineActiveStep(p, stepId)
-      : markPipelineStep(p, stepId)
+  await safePersist("progress step", () =>
+    mutateJobProgress(prisma, jobId, (p) =>
+      mode === "start"
+        ? setPipelineActiveStep(p, stepId)
+        : markPipelineStep(p, stepId)
+    )
   );
 }

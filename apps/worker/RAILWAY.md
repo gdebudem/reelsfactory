@@ -49,7 +49,9 @@ powershell -File scripts/sync-railway-env.ps1
 | `TAVILY_API_KEY` | optional (web research; without it uses page data only) |
 | `PLAYWRIGHT_PARSER` | auto `true` on Railway (Bitrix/JS sites) |
 
-**Queue mode (default `postgres`):** worker polls Neon for `status=queued` jobs — **Redis not required**. Set `QUEUE_MODE=redis` only if you use Redis with quota headroom.
+**Queue mode (default `postgres`):** worker polls Neon for `generating_images` and `render_queued` — **Redis not required**. Set `QUEUE_MODE=redis` only if you use Redis with quota headroom.
+
+**Docker build:** `packages/pipeline-store` must be in the worker Dockerfile before `npm ci` (see `apps/worker/Dockerfile`).
 | `S3_ENDPOINT` | yes (R2) |
 | `S3_REGION` | `auto` for R2 |
 | `S3_BUCKET` | yes |

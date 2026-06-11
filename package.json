@@ -14,6 +14,7 @@
     "db:generate": "npm run db:generate --workspace=@reels-factory/web",
     "db:push": "npm run db:push --workspace=@reels-factory/web",
     "db:migrate-v2": "prisma db execute --file=./prisma/migrations/add_product_intel.sql --schema=./prisma/schema.prisma",
+    "db:migrate-logs": "prisma db execute --file=./prisma/migrations/add_job_pipeline_log.sql --schema=./prisma/schema.prisma",
     "db:studio": "npm run db:studio --workspace=@reels-factory/web"
   },
   "engines": {

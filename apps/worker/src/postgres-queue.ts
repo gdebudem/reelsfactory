@@ -2,11 +2,36 @@ import type { PrismaClient } from "@prisma/client";
 import { appendJobFailureLog } from "./jobProgress.js";
 
 const POLL_MS = Number(process.env.QUEUE_POLL_MS ?? 4000);
+const STALE_JOB_MS = Number(process.env.STALE_JOB_MS ?? 20 * 60 * 1000);
 
 type JobHandlers = {
   onGenerateImages: (jobId: string) => Promise<void>;
   onRender: (jobId: string) => Promise<void>;
 };
+
+async function reclaimStaleJobs(prisma: PrismaClient): Promise<void> {
+  const cutoff = new Date(Date.now() - STALE_JOB_MS);
+
+  const images = await prisma.reelJob.updateMany({
+    where: { status: "image_generating", updatedAt: { lt: cutoff } },
+    data: { status: "generating_images" },
+  });
+  if (images.count > 0) {
+    console.warn(
+      `[worker] Reclaimed ${images.count} stale image_generating job(s)`
+    );
+  }
+
+  const renders = await prisma.reelJob.updateMany({
+    where: { status: "rendering", updatedAt: { lt: cutoff } },
+    data: { status: "render_queued" },
+  });
+  if (renders.count > 0) {
+    console.warn(
+      `[worker] Reclaimed ${renders.count} stale rendering job(s)`
+    );
+  }
+}
 
 export async function startPostgresQueueWorker(
   prisma: PrismaClient,
@@ -18,6 +43,8 @@ export async function startPostgresQueueWorker(
 
   while (true) {
     try {
+      await reclaimStaleJobs(prisma);
+
       const imageJobId = await claimJob(
         prisma,
         "generating_images",
