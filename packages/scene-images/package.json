@@ -6,7 +6,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./fetch-image": "./src/fetch-image.ts"
+    "./fetch-image": "./src/fetch-image.ts",
+    "./scene-url": "./src/scene-url.ts"
   },
   "dependencies": {
     "@reels-factory/shared": "*",

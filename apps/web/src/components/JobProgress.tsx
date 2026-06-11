@@ -58,7 +58,10 @@ export function JobProgress({ jobId }: { jobId: string }) {
         const keepPolling =
           STORYBOARD_TRIGGER.has(status) ||
           status === "researching" ||
-          status === "scripting";
+          status === "scripting" ||
+          status === "generating_images" ||
+          status === "image_generating" ||
+          status === "images_ready";
 
         if (keepPolling) {
           await fetch(`/api/reels/jobs/${jobId}/storyboard`, {
@@ -66,11 +69,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
           });
         }
 
-        if (
-          keepPolling ||
-          status === "generating_images" ||
-          status === "image_generating"
-        ) {
+        if (keepPolling) {
           storyboardPollRef.current = setTimeout(tick, 20_000);
         }
       } catch {

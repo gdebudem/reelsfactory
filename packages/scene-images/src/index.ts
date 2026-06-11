@@ -6,17 +6,17 @@ import type {
   SceneImage,
 } from "@reels-factory/shared";
 import { sceneImagesSchema } from "@reels-factory/shared";
-import { generateSceneImageBuffer } from "./generate.js";
+import { generateSceneImageBuffer } from "./generate";
 import {
   describeOpenAiCapacityError,
   isOpenAiCapacityError,
   OPENAI_BILLING_LOG_HINT,
 } from "@reels-factory/shared";
-import { buildSceneImagePrompt } from "./prompts.js";
+import { buildSceneImagePrompt } from "./prompts";
 import {
   fetchImageBuffer,
   PLACEHOLDER_IMAGE_URL,
-} from "./fetch-image.js";
+} from "./fetch-image";
 
 export type SceneImageUploader = (
   key: string,
@@ -27,7 +27,7 @@ export type SceneImageUploader = (
 export type SceneImageProgress = (
   sceneIndex: number,
   phase: "start" | "complete",
-  meta?: import("./generate.js").SceneImageGenerationMeta
+  meta?: import("./generate").SceneImageGenerationMeta
 ) => void | Promise<void>;
 
 export type GenerateSceneImagesResult = {
@@ -56,6 +56,58 @@ async function storeSceneImage(
   }
 }
 
+async function buildSingleSceneFallback(
+  jobId: string,
+  product: ProductCard,
+  script: ReelScript,
+  sceneIndex: number,
+  upload: SceneImageUploader,
+  onProgress?: SceneImageProgress
+): Promise<SceneImage> {
+  const scene = script.scenes[sceneIndex]!;
+  await onProgress?.(sceneIndex, "start");
+
+  const idx = scene.imageIndex ?? sceneIndex;
+  const sourceUrl =
+    product.images[idx % Math.max(product.images.length, 1)] ??
+    product.images[0] ??
+    PLACEHOLDER_IMAGE_URL;
+
+  let imageUrl = PLACEHOLDER_IMAGE_URL;
+  try {
+    const { buffer, contentType } = await fetchImageBuffer(sourceUrl);
+    imageUrl = await storeSceneImage(jobId, sceneIndex, buffer, contentType, upload);
+  } catch {
+    try {
+      const placeholder = await fetchImageBuffer(PLACEHOLDER_IMAGE_URL);
+      imageUrl = await storeSceneImage(
+        jobId,
+        sceneIndex,
+        placeholder.buffer,
+        placeholder.contentType,
+        upload
+      );
+    } catch {
+      /* keep placeholder URL */
+    }
+  }
+
+  await onProgress?.(sceneIndex, "complete", {
+    model: "fallback",
+    quality: "product-photo",
+    size: "site",
+    mode: "fallback",
+  });
+
+  return {
+    sceneIndex,
+    style: scene.style,
+    text: scene.text,
+    imageUrl,
+    prompt: "fallback:product-photo",
+  };
+}
+
 async function buildProductPhotoFallback(
   jobId: string,
   product: ProductCard,
@@ -67,52 +119,9 @@ async function buildProductPhotoFallback(
   const results: SceneImage[] = [];
 
   for (let i = 0; i < 4; i++) {
-    const scene = script.scenes[i]!;
-    await onProgress?.(i, "start");
-
-    const idx = scene.imageIndex ?? i;
-    const sourceUrl =
-      product.images[idx % Math.max(product.images.length, 1)] ??
-      product.images[0] ??
-      PLACEHOLDER_IMAGE_URL;
-
-    let imageUrl = PLACEHOLDER_IMAGE_URL;
-    try {
-      const { buffer, contentType } = await fetchImageBuffer(sourceUrl);
-      imageUrl = await storeSceneImage(jobId, i, buffer, contentType, upload);
-    } catch (err) {
-      console.warn(
-        `[scene-images] Fallback fetch failed scene ${i + 1}:`,
-        err instanceof Error ? err.message : err
-      );
-      try {
-        const placeholder = await fetchImageBuffer(PLACEHOLDER_IMAGE_URL);
-        imageUrl = await storeSceneImage(
-          jobId,
-          i,
-          placeholder.buffer,
-          placeholder.contentType,
-          upload
-        );
-      } catch {
-        /* keep public placeholder URL */
-      }
-    }
-
-    results.push({
-      sceneIndex: i,
-      style: scene.style,
-      text: scene.text,
-      imageUrl,
-      prompt: "fallback:product-photo",
-    });
-
-    await onProgress?.(i, "complete", {
-      model: "fallback",
-      quality: "product-photo",
-      size: "site",
-      mode: "fallback",
-    });
+    results.push(
+      await buildSingleSceneFallback(jobId, product, script, i, upload, onProgress)
+    );
   }
 
   return {
@@ -170,7 +179,7 @@ export async function generateSceneImages(
     );
 
     let buffer: Buffer;
-    let meta: import("./generate.js").SceneImageGenerationMeta;
+    let meta: import("./generate").SceneImageGenerationMeta;
 
     try {
       ({ buffer, meta } = await generateSceneImageBuffer({
@@ -199,10 +208,22 @@ export async function generateSceneImages(
           `⚠ OpenAI биллинг: ${describeOpenAiCapacityError(err)}. Картинки — фото с сайта. ${OPENAI_BILLING_LOG_HINT}`
         );
       }
-      throw err;
+      console.warn(
+        `[scene-images] OpenAI error scene ${i + 1}, single-scene fallback:`,
+        err instanceof Error ? err.message : err
+      );
+      results.push(
+        await buildSingleSceneFallback(
+          jobId,
+          product,
+          script,
+          i,
+          upload,
+          onProgress
+        )
+      );
+      continue;
     }
-
-    const key = `scene-images/${jobId}/scene-${i}.png`;
 
     let imageUrl = await storeSceneImage(jobId, i, buffer, "image/png", upload);
 
@@ -232,6 +253,12 @@ export {
   buildSceneImagePrompt,
   buildReferenceEditPrompt,
   buildVisualSeriesBrief,
-} from "./prompts.js";
-export { generateSceneImageBuffer, getImageModel } from "./generate.js";
-export { fetchImageBuffer, PLACEHOLDER_IMAGE_URL } from "./fetch-image.js";
+} from "./prompts";
+export { generateSceneImageBuffer, getImageModel } from "./generate";
+export { fetchImageBuffer, PLACEHOLDER_IMAGE_URL } from "./fetch-image";
+export {
+  extractSceneStorageKey,
+  isBrokenSceneImageUrl,
+  isDirectBrowserSceneUrl,
+  sceneImagesNeedRegeneration,
+} from "./scene-url";

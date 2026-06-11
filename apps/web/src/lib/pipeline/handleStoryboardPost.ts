@@ -1,4 +1,6 @@
 import { persistJobLog } from "@reels-factory/pipeline-store";
+import { sceneImagesNeedRegeneration } from "@reels-factory/scene-images";
+import type { SceneImage } from "@reels-factory/shared";
 import { prisma } from "@/lib/prisma";
 import { enqueueSceneImagesJob } from "@/lib/queue";
 import { runStoryboard } from "./runStoryboard";
@@ -48,11 +50,29 @@ export async function handleStoryboardPost(
     return { ok: true, status: job.status };
   }
 
+  if (
+    job.status === "images_ready" &&
+    sceneImagesNeedRegeneration(job.sceneImagesJson as SceneImage[] | null)
+  ) {
+    await persistJobLog(
+      prisma,
+      jobId,
+      "картинки · перегенерация (битые URL в preview)",
+      "info"
+    );
+    await prisma.reelJob.update({
+      where: { id: jobId },
+      data: { status: "generating_images" },
+    });
+    await enqueueSceneImagesJob(jobId);
+    return { ok: true, status: "generating_images", resumed: true };
+  }
+
   if (STORYBOARD_DONE.has(job.status)) {
     return { ok: true, status: job.status };
   }
 
-    if (RESUMABLE.has(job.status)) {
+  if (RESUMABLE.has(job.status)) {
     if (!isStale(job.updatedAt)) {
       return { ok: true, status: job.status, busy: true };
     }

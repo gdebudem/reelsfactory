@@ -8,7 +8,7 @@ import type {
 import {
   buildReferenceEditPrompt,
   buildSceneImagePrompt,
-} from "./prompts.js";
+} from "./prompts";
 import type {
   ProductCard,
   PromptOverrides,

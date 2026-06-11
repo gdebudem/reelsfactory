@@ -26,7 +26,12 @@ export function buildPublicObjectUrl(key: string) {
   if (publicUrl) return `${publicUrl}/${key}`;
   const bucket = process.env.S3_BUCKET!;
   const endpoint = process.env.S3_ENDPOINT?.replace(/\/$/, "");
-  if (endpoint) return `${endpoint}/${bucket}/${key}`;
+  if (endpoint) {
+    console.warn(
+      "[storage] S3_PUBLIC_URL not set — image URLs may not load in browser. See R2_SETUP.md"
+    );
+    return `${endpoint}/${bucket}/${key}`;
+  }
   const region = process.env.S3_REGION || "us-east-1";
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
 }

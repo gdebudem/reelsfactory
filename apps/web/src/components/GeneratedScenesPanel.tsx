@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { SceneImage } from "@reels-factory/shared";
 import {
-  getSceneImageDisplayUrl,
   getSceneImageProxyUrl,
 } from "@/lib/scene-image-url";
 
@@ -26,21 +25,33 @@ function SceneImageTile({
   jobId: string;
   scene: SceneImage;
 }) {
-  const [src, setSrc] = useState(() => getSceneImageDisplayUrl(jobId, scene));
   const proxy = getSceneImageProxyUrl(jobId, scene.sceneIndex);
+  const [src, setSrc] = useState(proxy);
+  const [failed, setFailed] = useState(false);
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="relative aspect-[9/16] bg-slate-200">
-        <img
-          src={src}
-          alt={`Сцена ${scene.sceneIndex + 1}`}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          onError={() => {
-            if (src !== proxy) setSrc(proxy);
-          }}
-        />
+        {!failed ? (
+          <img
+            src={src}
+            alt={`Сцена ${scene.sceneIndex + 1}`}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={() => {
+              if (src !== `${proxy}?retry=1`) {
+                setSrc(`${proxy}?retry=1`);
+              } else {
+                setFailed(true);
+              }
+            }}
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-sm text-slate-500">
+            <span>Картинка недоступна</span>
+            <span className="text-xs">перегенерируйте ролик</span>
+          </div>
+        )}
         <span className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-xs font-mono text-white">
           {scene.sceneIndex + 1}/4
         </span>

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { generateSceneImages } from "@reels-factory/scene-images";
+import { generateSceneImages, sceneImagesNeedRegeneration } from "@reels-factory/scene-images";
 import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
 import type { PipelineStepId } from "@reels-factory/shared";
 import {
@@ -33,12 +33,23 @@ export async function processGenerateSceneImages(
   if (!script) throw new Error("Cannot generate images without script");
 
   const existing = job.sceneImagesJson as SceneImage[] | null;
-  if (existing && existing.length >= 4) {
+  if (existing && existing.length >= 4 && !sceneImagesNeedRegeneration(existing)) {
     await prisma.reelJob.update({
       where: { id: jobId },
       data: { status: "images_ready" },
     });
     return;
+  }
+
+  if (existing?.length) {
+    console.log(
+      `[worker] Regenerating scene images for ${jobId} (broken or missing URLs)`
+    );
+    await appendJobLog(
+      prisma,
+      jobId,
+      "worker · перегенерация картинок (битые URL или fallback)"
+    );
   }
 
   console.log(`[worker] Generating 4 scene images for ${jobId}`);

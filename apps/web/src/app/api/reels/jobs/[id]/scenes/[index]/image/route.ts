@@ -1,6 +1,9 @@
 import { sceneImageSchema } from "@reels-factory/shared";
-import { fetchImageBuffer } from "@reels-factory/scene-images/fetch-image";
 import { prisma } from "@/lib/prisma";
+import {
+  resolveSceneImageBytes,
+  resolveSceneImagePlaceholder,
+} from "@/lib/scene-image-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +46,7 @@ export async function GET(
   const { imageUrl } = parsed.data;
 
   try {
-    const { buffer, contentType } = await fetchImageBuffer(imageUrl);
+    const { buffer, contentType } = await resolveSceneImageBytes(imageUrl);
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": contentType,
@@ -52,7 +55,20 @@ export async function GET(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Fetch failed";
-    console.warn(`[scene-image] proxy failed job=${id} scene=${sceneIndex}:`, message);
-    return new Response(message, { status: 502 });
+    console.warn(
+      `[scene-image] proxy failed job=${id} scene=${sceneIndex} url=${imageUrl.slice(0, 80)}:`,
+      message
+    );
+    try {
+      const placeholder = await resolveSceneImagePlaceholder();
+      return new Response(new Uint8Array(placeholder.buffer), {
+        headers: {
+          "Content-Type": placeholder.contentType,
+          "Cache-Control": "public, max-age=300",
+        },
+      });
+    } catch {
+      return new Response(message, { status: 502 });
+    }
   }
 }
