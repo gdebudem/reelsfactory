@@ -68,7 +68,11 @@ export async function synthesizeProductIntel(
     return buildIntelFromProductOnly(product, marketplaceListings);
   }
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({
+    apiKey,
+    timeout: Number(process.env.OPENAI_TIMEOUT_MS ?? 55_000),
+    maxRetries: 1,
+  });
   const model = process.env.OPENAI_MODEL?.trim() || "gpt-4o";
 
   const system = resolvePromptText("intel_system", promptOverrides);
@@ -153,6 +157,16 @@ export async function synthesizeProductIntel(
     });
   } catch (err) {
     console.warn("[product-intel] synthesize failed:", err);
+    const isTimeout =
+      err instanceof Error &&
+      (/timeout|timed out|abort/i.test(err.message) ||
+        err.name === "APIConnectionTimeoutError");
+    if (isTimeout) {
+      await reporter.log(
+        "синтез intel · таймаут OpenAI — продолжаем с данными страницы",
+        "error"
+      );
+    }
     if (isOpenAiCapacityError(err)) {
       await reporter.log(
         `⚠ OpenAI биллинг (синтез intel): ${describeOpenAiCapacityError(err)}. ${OPENAI_BILLING_LOG_HINT}`,

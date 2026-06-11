@@ -25,7 +25,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
   const [approving, setApproving] = useState(false);
   const [renderStarted, setRenderStarted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const storyboardRequested = useRef(false);
+  const storyboardPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paidMarked = useRef(false);
 
   const { job, loading } = useJobProgressPoll(jobId, { renderStarted });
@@ -42,21 +42,50 @@ export function JobProgress({ jobId }: { jobId: string }) {
   }, [jobId, searchParams]);
 
   useEffect(() => {
-    if (storyboardRequested.current) return;
+    let cancelled = false;
 
-    async function triggerStoryboard() {
-      const statusRes = await fetch(`/api/reels/jobs/${jobId}`, {
-        cache: "no-store",
-      });
-      const statusData = await statusRes.json();
-      const status = statusData.job?.status as string | undefined;
-      if (!status || !STORYBOARD_TRIGGER.has(status)) return;
+    async function tick() {
+      if (cancelled) return;
 
-      storyboardRequested.current = true;
-      await fetch(`/api/reels/jobs/${jobId}/storyboard`, { method: "POST" });
+      try {
+        const statusRes = await fetch(`/api/reels/jobs/${jobId}`, {
+          cache: "no-store",
+        });
+        const statusData = await statusRes.json();
+        const status = statusData.job?.status as string | undefined;
+        if (!status || cancelled) return;
+
+        const keepPolling =
+          STORYBOARD_TRIGGER.has(status) ||
+          status === "researching" ||
+          status === "scripting";
+
+        if (keepPolling) {
+          await fetch(`/api/reels/jobs/${jobId}/storyboard`, {
+            method: "POST",
+          });
+        }
+
+        if (
+          keepPolling ||
+          status === "generating_images" ||
+          status === "image_generating"
+        ) {
+          storyboardPollRef.current = setTimeout(tick, 20_000);
+        }
+      } catch {
+        if (!cancelled) {
+          storyboardPollRef.current = setTimeout(tick, 20_000);
+        }
+      }
     }
 
-    void triggerStoryboard();
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (storyboardPollRef.current) clearTimeout(storyboardPollRef.current);
+    };
   }, [jobId]);
 
   async function approveAndRender() {

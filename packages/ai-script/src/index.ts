@@ -158,7 +158,11 @@ export async function generateReelScript(
     };
   }
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({
+    apiKey,
+    timeout: Number(process.env.OPENAI_TIMEOUT_MS ?? 55_000),
+    maxRetries: 1,
+  });
   const priceStr = formatPrice(input.product);
   const productData = buildProductContext(input.product);
   const intel = input.productIntel;

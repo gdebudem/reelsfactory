@@ -1,23 +1,8 @@
 import { NextResponse } from "next/server";
-import { persistJobLog } from "@reels-factory/pipeline-store";
-import { prisma } from "@/lib/prisma";
 import { envProblemResponse, hasDatabaseConfigured } from "@/lib/env";
-import { runStoryboard } from "@/lib/pipeline/runStoryboard";
+import { handleStoryboardPost } from "@/lib/pipeline/handleStoryboardPost";
 
-const STORYBOARD_STARTABLE = new Set(["draft", "paid", "failed"]);
-const STORYBOARD_DONE = new Set([
-  "images_ready",
-  "storyboard_ready",
-  "generating_images",
-  "render_queued",
-  "rendering",
-  "ready",
-]);
-const STORYBOARD_BUSY = new Set([
-  "researching",
-  "scripting",
-  "generating_images",
-]);
+export const maxDuration = 300;
 
 export async function POST(
   _req: Request,
@@ -29,61 +14,19 @@ export async function POST(
   }
 
   const { id } = await params;
-  const job = await prisma.reelJob.findUnique({ where: { id } });
-  if (!job) {
-    return NextResponse.json({ error: "Не найдено" }, { status: 404 });
-  }
+  const result = await handleStoryboardPost(id, { allowUnpaidDraft: true });
 
-  if (STORYBOARD_BUSY.has(job.status) || STORYBOARD_DONE.has(job.status)) {
-    return NextResponse.json({ ok: true, status: job.status });
-  }
-
-  const skipPayment = process.env.SKIP_PAYMENT === "true";
-
-  if (!skipPayment && job.status !== "paid" && job.status !== "failed") {
+  if (!result.ok) {
     return NextResponse.json(
-      { error: "Сначала оплатите ролик" },
-      { status: 402 }
+      { error: result.error, details: result.error },
+      { status: result.status }
     );
   }
 
-  if (skipPayment && job.status === "draft") {
-    await prisma.reelJob.update({
-      where: { id },
-      data: { status: "paid" },
-    });
-  }
-
-  if (!STORYBOARD_STARTABLE.has(job.status) && job.status !== "draft") {
-    return NextResponse.json(
-      { error: "Задача не может быть запущена" },
-      { status: 400 }
-    );
-  }
-
-  const claimed = await prisma.reelJob.updateMany({
-    where: { id, status: { in: ["paid", "failed", "draft"] } },
-    data: { status: "researching", errorMessage: null },
+  return NextResponse.json({
+    ok: true,
+    status: result.status,
+    resumed: result.resumed,
+    busy: result.busy,
   });
-
-  if (claimed.count === 0) {
-    const current = await prisma.reelJob.findUnique({ where: { id } });
-    return NextResponse.json({ ok: true, status: current?.status ?? job.status });
-  }
-
-  try {
-    const status = await runStoryboard(id);
-    return NextResponse.json({ ok: true, status });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Ошибка раскадровки";
-    await persistJobLog(prisma, id, `ошибка · ${message}`, "error");
-    await prisma.reelJob.update({
-      where: { id },
-      data: { status: "failed", errorMessage: message },
-    });
-    return NextResponse.json(
-      { error: "Не удалось создать раскадровку", details: message },
-      { status: 500 }
-    );
-  }
 }
