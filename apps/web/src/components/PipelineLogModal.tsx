@@ -95,10 +95,19 @@ export function PipelineLogModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <div
+        className="flex h-[min(92vh,920px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        role="dialog"
+        aria-labelledby="pipeline-log-title"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Лог пайплайна</h2>
+            <h2
+              id="pipeline-log-title"
+              className="text-xl font-bold text-slate-900"
+            >
+              Лог пайплайна
+            </h2>
             <p className="mt-1 text-sm text-slate-500">
               Все запросы и этапы · сохраняется в базе
             </p>
@@ -113,8 +122,8 @@ export function PipelineLogModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[240px_1fr]">
-          <div className="max-h-[40vh] overflow-y-auto border-b border-slate-200 md:max-h-none md:border-b-0 md:border-r">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:grid-cols-[minmax(0,240px)_minmax(0,1fr)] md:grid-rows-1">
+          <div className="max-h-[min(35vh,220px)] min-h-0 overflow-y-auto overscroll-contain border-b border-slate-200 md:max-h-none md:border-b-0 md:border-r">
             {loadingJobs ? (
               <p className="px-4 py-6 text-sm text-slate-500">Загрузка…</p>
             ) : jobsError ? (
@@ -155,40 +164,40 @@ export function PipelineLogModal({ open, onClose }: Props) {
             )}
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-hidden p-4 md:p-6">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-4 md:p-6">
             {!selectedJobId ? (
               <p className="text-slate-500">Выберите ролик слева</p>
             ) : loadingJob && !job ? (
               <p className="text-slate-500">Загрузка лога…</p>
             ) : (
               <>
-                <PipelineLog
-                  productLabel={
-                    productLabel ?? selectedSummary?.productJson?.title
-                  }
-                  entries={job?.progressJson?.logs ?? []}
-                  activeMessage={
-                    job
-                      ? getActivePipelineLogMessage(
-                          job.progressJson,
-                          job.status
-                        )
-                      : null
-                  }
-                  usage={job?.progressJson?.usage}
-                  className="min-h-0 max-h-none flex-1 border-0 p-0 shadow-none"
-                />
-                {selectedJobId ? (
-                  <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
-                    <Link
-                      href={`/create/result/${selectedJobId}#log`}
-                      onClick={onClose}
-                      className="text-sm text-indigo-600 underline"
-                    >
-                      Открыть страницу ролика
-                    </Link>
-                  </div>
-                ) : null}
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <PipelineLog
+                    embedded
+                    productLabel={
+                      productLabel ?? selectedSummary?.productJson?.title
+                    }
+                    entries={job?.progressJson?.logs ?? []}
+                    activeMessage={
+                      job
+                        ? getActivePipelineLogMessage(
+                            job.progressJson,
+                            job.status
+                          )
+                        : null
+                    }
+                    usage={job?.progressJson?.usage}
+                  />
+                </div>
+                <div className="mt-3 flex shrink-0 justify-end border-t border-slate-100 pt-3">
+                  <Link
+                    href={`/create/result/${selectedJobId}#log`}
+                    onClick={onClose}
+                    className="text-sm text-indigo-600 underline"
+                  >
+                    Открыть страницу ролика
+                  </Link>
+                </div>
               </>
             )}
           </div>

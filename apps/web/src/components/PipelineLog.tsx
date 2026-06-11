@@ -60,14 +60,22 @@ type Props = {
   entries: PipelineLogEntry[];
   activeMessage?: string | null;
   usage?: PipelineProgress["usage"];
+  /** В модалке / вложенный блок — без рамки, прокрутка внутри родителя */
+  embedded?: boolean;
   className?: string;
 };
+
+const STANDALONE_ROOT =
+  "flex max-h-[calc(100vh-8rem)] min-h-[320px] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:min-h-[420px] lg:max-h-[calc(100vh-6rem)]";
+
+const EMBEDDED_ROOT = "flex h-full min-h-0 flex-col overflow-hidden";
 
 export function PipelineLog({
   productLabel,
   entries,
   activeMessage,
   usage,
+  embedded = false,
   className,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -93,26 +101,28 @@ export function PipelineLog({
 
   const hasBillingAlert = entries.some((e) => e.kind === "billing");
 
-  return (
-    <div
-      id="log"
-      className={
-        className ??
-        "flex max-h-[calc(100vh-8rem)] min-h-[320px] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:min-h-[420px] lg:max-h-[calc(100vh-6rem)]"
-      }
-    >
-      <h3 className="text-center text-2xl font-normal text-slate-800">лог</h3>
-      <p className="mt-1 text-center text-xs text-slate-400">
-        сохраняется в базе · доступен всегда
-      </p>
+  const rootClass = embedded
+    ? [EMBEDDED_ROOT, className].filter(Boolean).join(" ")
+    : className ?? STANDALONE_ROOT;
 
-      <p className="mt-6 text-sm text-slate-700">
+  return (
+    <div id="log" className={rootClass}>
+      {!embedded ? (
+        <>
+          <h3 className="text-center text-2xl font-normal text-slate-800">лог</h3>
+          <p className="mt-1 text-center text-xs text-slate-400">
+            сохраняется в базе · доступен всегда
+          </p>
+        </>
+      ) : null}
+
+      <p className={embedded ? "shrink-0 text-sm text-slate-700" : "mt-6 text-sm text-slate-700"}>
         рекламируем товар :{" "}
         <span className="font-medium">{productLabel || "—"}</span>
       </p>
 
       {hasBillingAlert ? (
-        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p className="mt-3 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           В логе есть предупреждения о лимите OpenAI — пополните баланс на
           platform.openai.com → Billing
         </p>
@@ -120,7 +130,7 @@ export function PipelineLog({
 
       <div
         ref={scrollRef}
-        className="mt-6 flex-1 space-y-2 overflow-y-auto text-left text-sm leading-relaxed"
+        className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain text-left text-sm leading-relaxed"
       >
         {entries.length === 0 && !activeMessage ? (
           <p className="text-center text-slate-400">ожидаем действия…</p>
@@ -149,7 +159,7 @@ export function PipelineLog({
       </div>
 
       {hasUsage ? (
-        <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-600 space-y-1">
+        <div className="mt-4 shrink-0 border-t border-slate-100 pt-3 text-xs text-slate-600 space-y-1">
           <p className="font-medium text-slate-700">расход за job (оценка)</p>
           {summary.chatTotal > 0 ? (
             <p>
