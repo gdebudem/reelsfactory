@@ -19,7 +19,11 @@ import {
   rankConsumerHooks,
 } from "./product-hooks";
 import { buildViralMockScript } from "./viral-script";
-import type { PromptOverrides, RequestLogPayload } from "@reels-factory/shared";
+import {
+  buildOpenAiChatRequestLog,
+  type PromptOverrides,
+  type RequestLogPayload,
+} from "@reels-factory/shared";
 import { resolvePromptText } from "@reels-factory/shared";
 import type {
   GenerateScriptInput,
@@ -216,17 +220,18 @@ export async function generateReelScript(
     },
   });
 
-  try {
-    const model = getOpenAiModel();
-    await requestLogger?.logRequest?.({
-      method: "POST",
-      url: "https://api.openai.com/v1/chat/completions",
-      service: "OpenAI",
-      target: "сценарий",
-      body: `model=${model} · json · temperature=0.75 · reelType=${input.reelType}`,
-      runtime: "Vercel",
-    });
+  const model = getOpenAiModel();
+  const requestBodySummary = [
+    "response_format=json_object",
+    "temperature=0.75",
+    `reelType=${input.reelType}`,
+    `cta=${input.ctaType}`,
+    `hooks=${suggestedHooks.length}`,
+    `reviews=${reviewContext.hasReviews ? "да" : "нет"}`,
+    `товар="${input.product.title.slice(0, 56)}"`,
+  ].join(" · ");
 
+  try {
     const completion = await openai.chat.completions.create({
       model,
       messages: [
@@ -248,6 +253,21 @@ export async function generateReelScript(
         }
       : undefined;
 
+    await requestLogger?.logRequest?.(
+      buildOpenAiChatRequestLog({
+        target: "сценарий · chat completions",
+        model,
+        body: requestBodySummary,
+        status: 200,
+        result: usage
+          ? `${usage.totalTokens} токенов (${usage.promptTokens} prompt + ${usage.completionTokens} completion)`
+          : content
+            ? "ok"
+            : "пустой content",
+        runtime: "Vercel",
+      })
+    );
+
     if (!content) {
       return {
         script: buildViralMockScript(input, intel),
@@ -268,6 +288,17 @@ export async function generateReelScript(
     };
   } catch (err) {
     const billing = isOpenAiCapacityError(err);
+    const message = err instanceof Error ? err.message : String(err);
+    await requestLogger?.logRequest?.(
+      buildOpenAiChatRequestLog({
+        target: "сценарий · chat completions",
+        model,
+        body: requestBodySummary,
+        status: billing ? 429 : 500,
+        result: billing ? describeOpenAiCapacityError(err) : message.slice(0, 120),
+        runtime: "Vercel",
+      })
+    );
     return {
       script: buildViralMockScript(input, intel),
       mock: true,

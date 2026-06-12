@@ -8,6 +8,7 @@ import type {
 import { sceneImagesSchema } from "@reels-factory/shared";
 import { generateSceneImageBuffer } from "./generate";
 import {
+  buildHttpGetRequestLog,
   describeOpenAiCapacityError,
   isOpenAiCapacityError,
   OPENAI_BILLING_LOG_HINT,
@@ -62,7 +63,8 @@ async function buildSingleSceneFallback(
   script: ReelScript,
   sceneIndex: number,
   upload: SceneImageUploader,
-  onProgress?: SceneImageProgress
+  onProgress?: SceneImageProgress,
+  onRequest?: (payload: RequestLogPayload) => void | Promise<void>
 ): Promise<SceneImage> {
   const scene = script.scenes[sceneIndex]!;
   await onProgress?.(sceneIndex, "start");
@@ -76,8 +78,32 @@ async function buildSingleSceneFallback(
   let imageUrl = PLACEHOLDER_IMAGE_URL;
   try {
     const { buffer, contentType } = await fetchImageBuffer(sourceUrl);
+    await onRequest?.(
+      buildHttpGetRequestLog({
+        url: sourceUrl,
+        service: "HTTP",
+        target: `fallback фото · сцена ${sceneIndex + 1}/4`,
+        body: "загружаю фото товара с URL маркетплейса/сайта",
+        status: 200,
+        result: `${Math.max(1, Math.round(buffer.length / 1024))} KB · ${contentType}`,
+        runtime: "Railway",
+      })
+    );
     imageUrl = await storeSceneImage(jobId, sceneIndex, buffer, contentType, upload);
-  } catch {
+  } catch (fetchErr) {
+    const msg =
+      fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    await onRequest?.(
+      buildHttpGetRequestLog({
+        url: sourceUrl,
+        service: "HTTP",
+        target: `fallback фото · сцена ${sceneIndex + 1}/4`,
+        body: "загружаю фото товара с URL маркетплейса/сайта",
+        status: 0,
+        result: `ошибка: ${msg.slice(0, 80)}`,
+        runtime: "Railway",
+      })
+    );
     try {
       const placeholder = await fetchImageBuffer(PLACEHOLDER_IMAGE_URL);
       imageUrl = await storeSceneImage(
@@ -114,13 +140,22 @@ async function buildProductPhotoFallback(
   script: ReelScript,
   upload: SceneImageUploader,
   onProgress?: SceneImageProgress,
-  reason?: string
+  reason?: string,
+  onRequest?: (payload: RequestLogPayload) => void | Promise<void>
 ): Promise<GenerateSceneImagesResult> {
   const results: SceneImage[] = [];
 
   for (let i = 0; i < 4; i++) {
     results.push(
-      await buildSingleSceneFallback(jobId, product, script, i, upload, onProgress)
+      await buildSingleSceneFallback(
+        jobId,
+        product,
+        script,
+        i,
+        upload,
+        onProgress,
+        onRequest
+      )
     );
   }
 
@@ -159,7 +194,8 @@ export async function generateSceneImages(
       script,
       upload,
       onProgress,
-      "картинки · фото с сайта (MOCK_SCENE_IMAGES или нет OPENAI_API_KEY)"
+      "картинки · фото с сайта (MOCK_SCENE_IMAGES или нет OPENAI_API_KEY)",
+      onRequest
     );
   }
 
@@ -205,7 +241,8 @@ export async function generateSceneImages(
           script,
           upload,
           onProgress,
-          `⚠ OpenAI биллинг: ${describeOpenAiCapacityError(err)}. Картинки — фото с сайта. ${OPENAI_BILLING_LOG_HINT}`
+          `⚠ OpenAI биллинг: ${describeOpenAiCapacityError(err)}. Картинки — фото с сайта. ${OPENAI_BILLING_LOG_HINT}`,
+          onRequest
         );
       }
       console.warn(
@@ -219,7 +256,8 @@ export async function generateSceneImages(
           script,
           i,
           upload,
-          onProgress
+          onProgress,
+          onRequest
         )
       );
       continue;

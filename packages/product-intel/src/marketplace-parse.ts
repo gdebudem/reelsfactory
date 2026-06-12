@@ -1,4 +1,4 @@
-import type { ProductCard } from "@reels-factory/shared";
+import { buildHttpGetRequestLog, type ProductCard } from "@reels-factory/shared";
 import {
   isMarketplaceHost,
   parseProductUrl,
@@ -6,6 +6,8 @@ import {
 } from "@reels-factory/product-parser";
 import { isTavilyAvailable, tavilyExtract } from "./tavily";
 import { productCardFromExtractedContent } from "./review-extract";
+import type { ResearchProgressReporter } from "./progress";
+import { createTavilyExtractRequestHandler } from "./request-log";
 
 export function needsTavilyExtractFallback(card: ProductCard): boolean {
   if (!isMarketplaceHost(card.sourceUrl)) return false;
@@ -17,6 +19,7 @@ export function needsTavilyExtractFallback(card: ProductCard): boolean {
 export async function parseListingUrl(
   url: string,
   productTitle: string,
+  reporter?: ResearchProgressReporter,
   extractQuery?: string
 ): Promise<ProductCard> {
   let card: ProductCard | null = null;
@@ -24,8 +27,30 @@ export async function parseListingUrl(
 
   try {
     card = await parseProductUrl(url);
+    await reporter?.logRequest?.(
+      buildHttpGetRequestLog({
+        url,
+        service: "product-parser",
+        target: "HTML страницы маркетплейса",
+        body: "GET · User-Agent Chrome · парсинг карточки товара",
+        status: 200,
+        result: `${card.title.slice(0, 40)} · ${card.reviews?.length ?? 0} отзывов · ${card.images.length} фото`,
+        runtime: "Vercel",
+      })
+    );
   } catch (e) {
     parseError = e instanceof ProductParseError ? e.message : String(e);
+    await reporter?.logRequest?.(
+      buildHttpGetRequestLog({
+        url,
+        service: "product-parser",
+        target: "HTML страницы маркетплейса",
+        body: "GET · User-Agent Chrome · парсинг карточки товара",
+        status: 0,
+        result: `ошибка: ${parseError.slice(0, 80)}`,
+        runtime: "Vercel",
+      })
+    );
   }
 
   const shouldExtract =
@@ -34,10 +59,14 @@ export async function parseListingUrl(
     (!card || needsTavilyExtractFallback(card) || parseError);
 
   if (shouldExtract) {
-    const extracted = await tavilyExtract(
-      [url],
-      extractQuery ?? `${productTitle} отзывы характеристики`
-    );
+    const query = extractQuery ?? `${productTitle} отзывы характеристики`;
+    const onExtract = reporter
+      ? createTavilyExtractRequestHandler(
+          reporter,
+          `fallback · ${new URL(url).hostname}`
+        )
+      : undefined;
+    const extracted = await tavilyExtract([url], query, onExtract);
     const hit = extracted[0];
     if (hit?.content && hit.content.length > 80) {
       const fromExtract = productCardFromExtractedContent(

@@ -151,7 +151,11 @@ export async function runReelPipeline(
       },
     });
 
-    await persistJobLog(prisma, job.id, "переход к оплате Stripe");
+    await persistJobLog(
+      prisma,
+      job.id,
+      `→ Stripe · POST api.stripe.com/v1/checkout/sessions · tier=${data.tier} · success_url=/create/result/${job.id}`
+    );
     await prisma.reelJob.update({
       where: { id: job.id },
       data: { tier: data.tier },

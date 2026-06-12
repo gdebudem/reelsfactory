@@ -1,7 +1,13 @@
 import type { PrismaClient } from "@prisma/client";
 import { generateSceneImages, sceneImagesNeedRegeneration } from "@reels-factory/scene-images";
-import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
-import type { PipelineStepId } from "@reels-factory/shared";
+import type { SceneImageUploader } from "@reels-factory/scene-images";
+import {
+  buildS3PutRequestLog,
+  type ProductCard,
+  type PipelineStepId,
+  type ReelScript,
+  type SceneImage,
+} from "@reels-factory/shared";
 import {
   appendJobBillingLog,
   appendJobCostSummary,
@@ -54,16 +60,38 @@ export async function processGenerateSceneImages(
 
   console.log(`[worker] Generating 4 scene images for ${jobId}`);
   await ensureWorkerServiceDiagnostics(prisma, jobId);
-  await appendJobLog(prisma, jobId, "worker · генерация 4 AI-картинок");
+  await appendJobLog(
+    prisma,
+    jobId,
+    `worker · генерация 4 картинок · товар="${product.title.slice(0, 48)}" · OpenAI images API`
+  );
 
   const promptOverrides = await loadPromptOverrides(prisma);
+
+  const loggedUpload: SceneImageUploader = async (key, body, contentType) => {
+    const url = await uploadToStorage(key, body, contentType);
+    await appendJobRequestLog(
+      prisma,
+      jobId,
+      buildS3PutRequestLog({
+        endpoint: process.env.S3_ENDPOINT ?? "",
+        bucket: process.env.S3_BUCKET ?? "bucket",
+        key,
+        contentType,
+        bytes: body.length,
+        publicUrl: url,
+        target: "сохранение картинки сцены в R2",
+      })
+    );
+    return url;
+  };
 
   const { scenes: sceneImages, usedProductPhotoFallback, fallbackReason } =
     await generateSceneImages(
       jobId,
       product,
       script,
-      uploadToStorage,
+      loggedUpload,
       async (sceneIndex, phase, meta) => {
         const stepId = IMAGE_STEPS[sceneIndex];
         if (!stepId) return;

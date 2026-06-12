@@ -58,8 +58,8 @@ export async function buildProductIntel(
 
   await reporter.log(
     tavilyMode === "api_key"
-      ? "Tavily · api_key · поиск маркетплейсов и отзывов"
-      : "Tavily · keyless · поиск маркетплейсов и отзывов"
+      ? "исследование · Tavily api.tavily.com/search (api_key) → маркетплейсы + отзывы"
+      : "исследование · Tavily api.tavily.com/search (keyless) → маркетплейсы + отзывы"
   );
 
   const discovered = await discoverMarketplaceUrls(product, reporter);

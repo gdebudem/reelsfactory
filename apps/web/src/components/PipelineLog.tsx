@@ -137,7 +137,15 @@ export function PipelineLog({
         ) : null}
 
         {entries.map((entry, i) => (
-          <p key={`${entry.at}-${i}`} className={logEntryClass(entry.kind)}>
+          <p
+            key={`${entry.at}-${i}`}
+            className={[
+              logEntryClass(entry.kind),
+              entry.kind === "request" ? "whitespace-pre-wrap" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
             <span className="tabular-nums text-slate-500">
               {formatLogTime(entry.at)}
             </span>{" "}

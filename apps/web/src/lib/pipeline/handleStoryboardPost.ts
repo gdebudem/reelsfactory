@@ -57,7 +57,7 @@ export async function handleStoryboardPost(
     await persistJobLog(
       prisma,
       jobId,
-      "картинки · перегенерация (битые URL в preview)",
+      "картинки · перегенерация · worker queue (Railway) · OpenAI images + R2 upload",
       "info"
     );
     await prisma.reelJob.update({

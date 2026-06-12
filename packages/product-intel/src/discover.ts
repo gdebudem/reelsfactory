@@ -1,4 +1,8 @@
-import type { ProductCard, PipelineStepId } from "@reels-factory/shared";
+import {
+  buildHttpGetRequestLog,
+  type ProductCard,
+  type PipelineStepId,
+} from "@reels-factory/shared";
 import { tavilySearch } from "./tavily";
 import {
   MARKETPLACES,
@@ -141,16 +145,17 @@ async function duckDuckGoMarketplaceSearch(
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) {
-      await reporter.logRequest?.({
-        method: "GET",
-        url: requestUrl,
-        service: "DuckDuckGo",
-        target: `fallback · ${mp.platform}`,
-        body: `q=site:${domain} …`,
-        status: res.status,
-        result: "ошибка",
-        runtime: "Vercel",
-      });
+      await reporter.logRequest?.(
+        buildHttpGetRequestLog({
+          url: requestUrl,
+          service: "DuckDuckGo HTML",
+          target: `fallback поиск · ${mp.platform}`,
+          body: `q=site:${domain} ${query.slice(0, 48)}`,
+          status: res.status,
+          result: "ошибка",
+          runtime: "Vercel",
+        })
+      );
       return listings;
     }
     const html = await res.text();
@@ -159,19 +164,20 @@ async function duckDuckGoMarketplaceSearch(
       if (!isMarketplaceProductUrl(url)) continue;
       listings.push({ platform: mp.platform, url });
     }
-    await reporter.logRequest?.({
-      method: "GET",
-      url: requestUrl,
-      service: "DuckDuckGo",
-      target: `fallback · ${mp.platform}`,
-      body: `q=site:${domain} …`,
-      status: res.status,
-      result:
-        listings.length > 0
-          ? `${listings.length} ссылок`
-          : "пусто",
-      runtime: "Vercel",
-    });
+    await reporter.logRequest?.(
+      buildHttpGetRequestLog({
+        url: requestUrl,
+        service: "DuckDuckGo HTML",
+        target: `fallback поиск · ${mp.platform}`,
+        body: `q=site:${domain} ${query.slice(0, 48)}`,
+        status: res.status,
+        result:
+          listings.length > 0
+            ? `${listings.length} ссылок на товары`
+            : "пусто",
+        runtime: "Vercel",
+      })
+    );
   } catch {
     /* optional fallback */
   }

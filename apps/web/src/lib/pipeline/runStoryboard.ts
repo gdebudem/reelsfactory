@@ -74,7 +74,9 @@ export async function runStoryboard(
       data: { status: "scripting" },
     });
     await reporter.start("write_script");
-    await reporter.log(`OpenAI · модель ${getOpenAiModel()} · пишу сценарий`);
+    await reporter.log(
+      `сценарий · отправлю запрос в OpenAI chat completions (модель ${getOpenAiModel()})`
+    );
 
     const result = await generateReelScript(
       {

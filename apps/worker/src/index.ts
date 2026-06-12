@@ -1,7 +1,12 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
 import { PrismaClient } from "@prisma/client";
-import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
+import {
+  buildS3PutRequestLog,
+  type ProductCard,
+  type ReelScript,
+  type SceneImage,
+} from "@reels-factory/shared";
 import {
   isProductParsePoor,
   parseProductUrl,
@@ -14,6 +19,7 @@ import {
   appendJobCompleteLog,
   appendJobFailureLog,
   appendJobLog,
+  appendJobRequestLog,
   ensureWorkerServiceDiagnostics,
   touchJobProgress,
 } from "./jobProgress.js";
@@ -107,19 +113,25 @@ async function processRender(jobId: string) {
   await touchJobProgress(prisma, jobId, "start", "assemble_video");
 
   const musicTrack = script.musicTrackId ?? script.musicMood ?? "steady_groove";
+  const sceneImages = job.sceneImagesJson as SceneImage[] | null;
   await appendJobLog(
     prisma,
     jobId,
-    `ffmpeg · музыка ${musicTrack} · склейка 4 сцен`
+    `ffmpeg · локальный рендер → PUT R2/S3 videos/${jobId}.mp4 · 4 сцены · музыка ${musicTrack}`
   );
-
-  const sceneImages = job.sceneImagesJson as SceneImage[] | null;
   const videoUrl = await renderReelToS3(jobId, product, script, sceneImages);
   if (videoUrl) {
-    await appendJobLog(
+    await appendJobRequestLog(
       prisma,
       jobId,
-      `видео загружено · ${videoUrl.slice(0, 80)}`
+      buildS3PutRequestLog({
+        endpoint: process.env.S3_ENDPOINT ?? "",
+        bucket: process.env.S3_BUCKET ?? "bucket",
+        key: `videos/${jobId}.mp4`,
+        contentType: "video/mp4",
+        publicUrl: videoUrl,
+        target: "финальное видео после ffmpeg",
+      })
     );
   }
   await touchJobProgress(prisma, jobId, "complete", "assemble_video");

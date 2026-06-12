@@ -299,40 +299,18 @@ export function appendBillingAlert(
   return appendPipelineLog(progress, text, "billing", meta);
 }
 
-export type RequestLogPayload = {
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  url: string;
-  service: string;
-  target?: string;
-  body?: string;
-  status?: number;
-  result?: string;
-  runtime?: string;
-};
-
-function shortenRequestUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    const path = u.pathname.replace(/\/$/, "") || "/";
-    return `${u.hostname}${path}`;
-  } catch {
-    return url;
-  }
-}
-
-export function formatRequestLogText(payload: RequestLogPayload): string {
-  const parts = [
-    `${payload.method} ${shortenRequestUrl(payload.url)}`,
-    payload.service,
-  ];
-  if (payload.target) parts.push(payload.target);
-  if (payload.body) parts.push(payload.body);
-  if (payload.runtime) parts.push(payload.runtime);
-  let text = parts.join(" · ");
-  if (payload.status !== undefined) text += ` → ${payload.status}`;
-  if (payload.result) text += ` · ${payload.result}`;
-  return text;
-}
+export type { HttpMethod, RequestLogPayload } from "./request-log";
+export {
+  buildHttpGetRequestLog,
+  buildOpenAiChatRequestLog,
+  buildOpenAiImageRequestLog,
+  buildS3PutRequestLog,
+  formatRequestLogText,
+  maskSecretsInText,
+  shortenRequestUrl,
+} from "./request-log";
+import type { RequestLogPayload } from "./request-log";
+import { formatRequestLogText } from "./request-log";
 
 export function appendRequestLog(
   progress: PipelineProgress,
@@ -345,7 +323,9 @@ export function appendRequestLog(
     service: payload.service,
   };
   if (payload.target !== undefined) meta.target = payload.target;
+  if (payload.body !== undefined) meta.body = payload.body.slice(0, 500);
   if (payload.status !== undefined) meta.status = payload.status;
+  if (payload.result !== undefined) meta.result = payload.result.slice(0, 200);
   if (payload.runtime !== undefined) meta.runtime = payload.runtime;
   return appendPipelineLog(progress, text, "request", meta);
 }

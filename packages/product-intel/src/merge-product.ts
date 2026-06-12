@@ -130,7 +130,7 @@ export async function fetchMarketplaceProducts(
   await reporter.start("read_descriptions");
 
   const results = await Promise.allSettled(
-    urls.map((url) => parseListingUrl(url, product.title))
+    urls.map((url) => parseListingUrl(url, product.title, reporter))
   );
 
   for (let i = 0; i < results.length; i++) {
@@ -144,27 +144,9 @@ export async function fetchMarketplaceProducts(
             ? result.reason.message
             : String(result.reason);
       console.warn(`[product-intel] Failed to parse ${url}: ${msg}`);
-      await reporter.logRequest?.({
-        method: "GET",
-        url,
-        service: "product-parser",
-        target: "страница маркетплейса",
-        result: `ошибка: ${msg.slice(0, 60)}`,
-        runtime: "Vercel",
-      });
       continue;
     }
     parsedCards.push(result.value);
-    const reviewCount = result.value.reviews?.length ?? 0;
-    await reporter.logRequest?.({
-      method: "GET",
-      url,
-      service: "product-parser",
-      target: "страница маркетплейса",
-      status: 200,
-      result: `${result.value.title.slice(0, 32)} · ${reviewCount} отзывов`,
-      runtime: "Vercel",
-    });
     const meta = listingMeta.find(
       (l) => normalizePageUrl(l.url) === normalizePageUrl(url)
     );

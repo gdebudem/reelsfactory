@@ -9,11 +9,12 @@ import {
   buildReferenceEditPrompt,
   buildSceneImagePrompt,
 } from "./prompts";
-import type {
-  ProductCard,
-  PromptOverrides,
-  ReelScript,
-  RequestLogPayload,
+import {
+  buildOpenAiImageRequestLog,
+  type ProductCard,
+  type PromptOverrides,
+  type ReelScript,
+  type RequestLogPayload,
 } from "@reels-factory/shared";
 
 const GPT_IMAGE_RE = /^(gpt-image|chatgpt-image)/i;
@@ -187,14 +188,6 @@ export async function generateSceneImageBuffer(
     try {
       const editSize = String(getEditSize(model));
       const editQuality = String(getGptQuality() ?? "high");
-      await onRequest?.({
-        method: "POST",
-        url: "https://api.openai.com/v1/images/edits",
-        service: "OpenAI",
-        target: `картинка ${sceneIndex + 1}/4`,
-        body: `model=${model} · edit · ${editSize} · ${editQuality}`,
-        runtime: "Railway",
-      });
       console.log(
         `[scene-images] Reference edit scene ${sceneIndex + 1} model=${model} quality=${getGptQuality()}`
       );
@@ -203,6 +196,17 @@ export async function generateSceneImageBuffer(
         model,
         editPrompt,
         referenceBuf
+      );
+      await onRequest?.(
+        buildOpenAiImageRequestLog({
+          endpoint: "edits",
+          target: `картинка ${sceneIndex + 1}/4 · ${scene.style} · edit по фото товара`,
+          model,
+          body: `size=${editSize} · quality=${editQuality} · ref=${referenceImageUrl?.slice(0, 64) ?? "—"}`,
+          status: 200,
+          result: `${Math.max(1, Math.round(buffer.length / 1024))} KB PNG`,
+          runtime: "Railway",
+        })
       );
       return {
         buffer,
@@ -230,18 +234,21 @@ export async function generateSceneImageBuffer(
   );
   const quality = String(getQuality(model) ?? "standard");
   const size = String(getGenerateSize(model));
-  await onRequest?.({
-    method: "POST",
-    url: "https://api.openai.com/v1/images/generations",
-    service: "OpenAI",
-    target: `картинка ${sceneIndex + 1}/4`,
-    body: `model=${model} · generate · ${size} · ${quality}`,
-    runtime: "Railway",
-  });
   console.log(
     `[scene-images] Generate scene ${sceneIndex + 1} model=${model} quality=${quality} size=${size}`
   );
   const buffer = await generateFromPrompt(openai, model, prompt);
+  await onRequest?.(
+    buildOpenAiImageRequestLog({
+      endpoint: "generations",
+      target: `картинка ${sceneIndex + 1}/4 · ${scene.style} · text-to-image`,
+      model,
+      body: `size=${size} · quality=${quality} · prompt=${prompt.slice(0, 120)}…`,
+      status: 200,
+      result: `${Math.max(1, Math.round(buffer.length / 1024))} KB PNG`,
+      runtime: "Railway",
+    })
+  );
   return {
     buffer,
     meta: {

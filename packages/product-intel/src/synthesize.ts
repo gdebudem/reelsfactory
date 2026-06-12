@@ -1,4 +1,5 @@
 import {
+  buildOpenAiChatRequestLog,
   describeOpenAiCapacityError,
   isOpenAiCapacityError,
   OPENAI_BILLING_LOG_HINT,
@@ -100,16 +101,16 @@ export async function synthesizeProductIntel(
     })),
   });
 
-  try {
-    await reporter.logRequest?.({
-      method: "POST",
-      url: "https://api.openai.com/v1/chat/completions",
-      service: "OpenAI",
-      target: "синтез intel",
-      body: `model=${model} · json · temperature=0.3 · snippets=${searchResults.length}`,
-      runtime: "Vercel",
-    });
+  const requestBodySummary = [
+    "response_format=json_object",
+    "temperature=0.3",
+    `snippets=${searchResults.length}`,
+    `marketplace=${marketplaceListings.length}`,
+    `reviews=${product.reviews?.length ?? 0}`,
+    `товар="${product.title.slice(0, 56)}"`,
+  ].join(" · ");
 
+  try {
     const completion = await openai.chat.completions.create({
       model,
       messages: [
@@ -121,6 +122,19 @@ export async function synthesizeProductIntel(
     });
 
     const usage = completion.usage;
+    await reporter.logRequest?.(
+      buildOpenAiChatRequestLog({
+        target: "синтез intel · chat completions",
+        model,
+        body: requestBodySummary,
+        status: 200,
+        result: usage
+          ? `${usage.total_tokens ?? 0} токенов (${usage.prompt_tokens ?? 0} prompt + ${usage.completion_tokens ?? 0} completion)`
+          : "ok",
+        runtime: "Vercel",
+      })
+    );
+
     if (usage) {
       await reporter.logUsage({
         label: "синтез intel",
@@ -157,6 +171,17 @@ export async function synthesizeProductIntel(
     });
   } catch (err) {
     console.warn("[product-intel] synthesize failed:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await reporter.logRequest?.(
+      buildOpenAiChatRequestLog({
+        target: "синтез intel · chat completions",
+        model,
+        body: requestBodySummary,
+        status: isOpenAiCapacityError(err) ? 429 : 500,
+        result: message.slice(0, 120),
+        runtime: "Vercel",
+      })
+    );
     const isTimeout =
       err instanceof Error &&
       (/timeout|timed out|abort/i.test(err.message) ||
