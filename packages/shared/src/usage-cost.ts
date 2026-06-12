@@ -6,6 +6,9 @@ import type {
 
 /** USD per 1M tokens (approximate; update when OpenAI changes pricing). */
 const CHAT_USD_PER_1M: Record<string, { input: number; output: number }> = {
+  "gpt-5.5": { input: 5, output: 30 },
+  "gpt-5": { input: 5, output: 20 },
+  "gpt-5-mini": { input: 0.5, output: 2 },
   "gpt-4o": { input: 2.5, output: 10 },
   "gpt-4o-mini": { input: 0.15, output: 0.6 },
   "gpt-4.1": { input: 2, output: 8 },
@@ -25,7 +28,7 @@ function matchChatPricing(model: string) {
   const key = Object.keys(CHAT_USD_PER_1M).find((k) =>
     model.toLowerCase().startsWith(k)
   );
-  return CHAT_USD_PER_1M[key ?? "gpt-4o"];
+  return CHAT_USD_PER_1M[key ?? "gpt-5.5"];
 }
 
 function matchImagePricing(model: string): number {

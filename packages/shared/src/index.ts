@@ -313,3 +313,5 @@ export {
   describeOpenAiCapacityError,
   OPENAI_BILLING_LOG_HINT,
 } from "./openai-errors";
+
+export { DEFAULT_OPENAI_MODEL, getOpenAiModel } from "./openai-model";

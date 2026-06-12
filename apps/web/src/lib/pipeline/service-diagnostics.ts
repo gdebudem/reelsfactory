@@ -1,5 +1,6 @@
 import {
   appendServiceLog,
+  getOpenAiModel,
   maskSecret,
   type PipelineProgress,
 } from "@reels-factory/shared";
@@ -28,7 +29,7 @@ export function applyWebServiceDiagnostics(
   userEmail?: string | null
 ): PipelineProgress {
   let next = progress;
-  const openaiModel = process.env.OPENAI_MODEL?.trim() || "gpt-4o";
+  const openaiModel = getOpenAiModel();
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
 
   next = appendServiceLog(next, {

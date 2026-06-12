@@ -1,5 +1,6 @@
 import {
   buildOpenAiChatRequestLog,
+  getOpenAiModel,
   describeOpenAiCapacityError,
   isOpenAiCapacityError,
   OPENAI_BILLING_LOG_HINT,
@@ -74,7 +75,7 @@ export async function synthesizeProductIntel(
     timeout: Number(process.env.OPENAI_TIMEOUT_MS ?? 55_000),
     maxRetries: 1,
   });
-  const model = process.env.OPENAI_MODEL?.trim() || "gpt-4o";
+  const model = getOpenAiModel();
 
   const system = resolvePromptText("intel_system", promptOverrides);
 

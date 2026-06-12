@@ -21,10 +21,11 @@ import {
 import { buildViralMockScript } from "./viral-script";
 import {
   buildOpenAiChatRequestLog,
+  getOpenAiModel,
+  resolvePromptText,
   type PromptOverrides,
   type RequestLogPayload,
 } from "@reels-factory/shared";
-import { resolvePromptText } from "@reels-factory/shared";
 import type {
   GenerateScriptInput,
   GenerateScriptResult,
@@ -35,12 +36,7 @@ type ReelType = z.infer<typeof reelTypeSchema>;
 type CtaType = z.infer<typeof ctaTypeSchema>;
 type Tier = z.infer<typeof tierSchema>;
 
-/** Default model for stage 3 (plan: gpt-4o). Override with OPENAI_MODEL. */
-export const DEFAULT_OPENAI_MODEL = "gpt-4o";
-
-export function getOpenAiModel() {
-  return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
-}
+export { DEFAULT_OPENAI_MODEL, getOpenAiModel } from "@reels-factory/shared";
 
 export { buildProductContext, rankConsumerHooks, pickReviewQuote, collectReviewsForScript, buildReviewContextForScript, enrichScriptWithReviews } from "./product-hooks";
 export { buildViralMockScript } from "./viral-script";
