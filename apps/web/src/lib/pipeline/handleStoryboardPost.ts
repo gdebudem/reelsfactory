@@ -65,8 +65,15 @@ export async function handleStoryboardPost(
     }
   }
 
-  if (job.status === "design_qa_failed") {
-    await persistJobLog(prisma, jobId, "картинки · повтор после design QA", "info");
+  if (job.status === "design_qa_failed" || job.status === "images_failed") {
+    await persistJobLog(
+      prisma,
+      jobId,
+      job.status === "images_failed"
+        ? "картинки · повторная AI-генерация"
+        : "картинки · повтор после design QA",
+      "info"
+    );
     await prisma.reelJob.update({
       where: { id: jobId },
       data: {

@@ -6,10 +6,6 @@ import {
   getSceneImageProxyUrl,
 } from "@/lib/scene-image-url";
 
-function isFallbackSceneImage(scene: SceneImage): boolean {
-  return scene.prompt?.startsWith("fallback:") ?? false;
-}
-
 const SCENE_STYLE_LABEL: Record<string, string> = {
   hook: "Hook",
   pain: "Боль",
@@ -74,7 +70,6 @@ function SceneImageTile({
 
 export function GeneratedScenesPanel({ jobId, scenes }: Props) {
   const ordered = [...scenes].sort((a, b) => a.sceneIndex - b.sceneIndex);
-  const usedFallback = ordered.every((s) => isFallbackSceneImage(s));
 
   return (
     <div className="rounded-2xl border border-indigo-200 bg-gradient-to-b from-indigo-50 to-white p-5 shadow-sm">
@@ -85,18 +80,6 @@ export function GeneratedScenesPanel({ jobId, scenes }: Props) {
         <p className="mt-1 text-sm text-slate-600">
           4 вертикальных кадра — из них соберём видео
         </p>
-        {usedFallback ? (
-          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Сейчас показаны фото с сайта, а не AI-фоны. Проверьте на Railway worker:
-            {" "}
-            <code className="rounded bg-white/80 px-1">OPENAI_API_KEY</code>
-            {" "}
-            и
-            {" "}
-            <code className="rounded bg-white/80 px-1">S3_*</code>
-            , затем создайте ролик заново.
-          </p>
-        ) : null}
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">

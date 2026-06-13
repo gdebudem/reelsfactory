@@ -25,6 +25,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
   const [approving, setApproving] = useState(false);
   const [renderStarted, setRenderStarted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const storyboardPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paidMarked = useRef(false);
 
@@ -87,6 +88,25 @@ export function JobProgress({ jobId }: { jobId: string }) {
     };
   }, [jobId]);
 
+  async function retryPipeline() {
+    setRetrying(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/reels/jobs/${jobId}/storyboard`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Не удалось повторить генерацию");
+      }
+      setRenderStarted(false);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   async function approveAndRender() {
     setApproving(true);
     setActionError(null);
@@ -142,25 +162,46 @@ export function JobProgress({ jobId }: { jobId: string }) {
     );
   }
 
-  if (job.status === "failed" || job.status === "script_failed" || job.status === "design_qa_failed") {
+  if (job.status === "failed" || job.status === "script_failed" || job.status === "design_qa_failed" || job.status === "images_failed") {
     const userMessage =
       job.status === "script_failed"
         ? (job.errorMessage ?? "Не удалось сгенерировать сценарий. Попробуйте снова.")
         : job.status === "design_qa_failed"
           ? (job.errorMessage ?? "Кадры не прошли проверку дизайна. Попробуйте снова.")
+          : job.status === "images_failed"
+            ? (job.errorMessage ?? "Не удалось сгенерировать кадры. Попробуйте снова.")
           : job.errorMessage;
+    const canRetry =
+      job.status === "script_failed" ||
+      job.status === "design_qa_failed" ||
+      job.status === "images_failed";
     return (
       <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
         <div className="space-y-4">
           <p className="text-lg font-semibold text-red-800">Ошибка</p>
           <p className="text-sm text-red-600">{userMessage}</p>
-          <button
-            type="button"
-            onClick={() => router.push("/create")}
-            className="text-indigo-600 underline"
-          >
-            Попробовать снова
-          </button>
+          {actionError ? (
+            <p className="text-sm text-red-600">{actionError}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-3">
+            {canRetry ? (
+              <button
+                type="button"
+                disabled={retrying}
+                onClick={retryPipeline}
+                className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {retrying ? "Запуск…" : "Повторить"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => router.push("/create")}
+              className="text-indigo-600 underline"
+            >
+              Новый ролик
+            </button>
+          </div>
         </div>
         {logPanel}
       </div>

@@ -15,6 +15,10 @@ Railpack **не подходит** для Remotion (нет `libnspr4`).
 
 Если сборка падает — **View logs** у failed deploy, строка с `ERROR`.
 
+## Crash: `OPENAI_API_KEY is not set`
+
+Worker exits on startup if `OPENAI_API_KEY` is missing (production). Scene images are **always** generated via OpenAI — no product-photo fallback.
+
 ## Crash: `DATABASE_URL is not set`
 
 Worker exits immediately if `DATABASE_URL` is missing in **Railway Variables** (not Vercel).
@@ -23,8 +27,9 @@ Worker exits immediately if `DATABASE_URL` is missing in **Railway Variables** (
 
 1. [railway.app](https://railway.app) → project **reelsfactory** → worker service → **Variables**
 2. **New variable** → `DATABASE_URL` → paste the **same Neon URL** as in Vercel (Settings → Environment Variables → Production → `DATABASE_URL` → reveal)
-3. Also add `OPENAI_API_KEY` (copy from Vercel) and `S3_*` (R2) if missing
-4. **Redeploy** (or wait for auto-restart)
+3. **Required:** `OPENAI_API_KEY` (same as Vercel) — without it worker **will not start** and AI frames are never generated
+4. Also add `S3_*` (R2) for storing scene images
+5. **Redeploy** (or wait for auto-restart)
 
 **Success in logs:**
 

@@ -10,6 +10,7 @@ import { generateSceneImageBuffer } from "./generate";
 import {
   buildHttpGetRequestLog,
   describeOpenAiCapacityError,
+  isDevMockAllowed,
   isOpenAiCapacityError,
   OPENAI_BILLING_LOG_HINT,
 } from "@reels-factory/shared";
@@ -28,6 +29,13 @@ export class DesignQaError extends Error {
   }
 }
 
+export class SceneImageGenerationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SceneImageGenerationError";
+  }
+}
+
 export type SceneImageUploader = (
   key: string,
   body: Buffer,
@@ -42,9 +50,21 @@ export type SceneImageProgress = (
 
 export type GenerateSceneImagesResult = {
   scenes: SceneImage[];
-  usedProductPhotoFallback?: boolean;
-  fallbackReason?: string;
 };
+
+function isDevSceneImageMockAllowed(): boolean {
+  return (
+    process.env.MOCK_SCENE_IMAGES === "true" && isDevMockAllowed()
+  );
+}
+
+function assertCanGenerateSceneImages(): void {
+  if (process.env.OPENAI_API_KEY?.trim()) return;
+  if (isDevSceneImageMockAllowed()) return;
+  throw new SceneImageGenerationError(
+    "Не удалось сгенерировать кадры. Попробуйте снова."
+  );
+}
 
 async function storeSceneImage(
   jobId: string,
@@ -66,126 +86,70 @@ async function storeSceneImage(
   }
 }
 
-async function buildSingleSceneFallback(
-  jobId: string,
-  product: ProductCard,
-  script: ReelScript,
-  sceneIndex: number,
-  upload: SceneImageUploader,
-  onProgress?: SceneImageProgress,
-  onRequest?: (payload: RequestLogPayload) => void | Promise<void>
-): Promise<SceneImage> {
-  const scene = script.scenes[sceneIndex]!;
-  await onProgress?.(sceneIndex, "start");
-
-  const idx = scene.imageIndex ?? sceneIndex;
-  const sourceUrl =
-    product.images[idx % Math.max(product.images.length, 1)] ??
-    product.images[0] ??
-    PLACEHOLDER_IMAGE_URL;
-
-  let imageUrl = PLACEHOLDER_IMAGE_URL;
-  let buffer: Buffer | null = null;
-  let contentType = "image/jpeg";
-  try {
-    const fetched = await fetchImageBuffer(sourceUrl);
-    buffer = fetched.buffer;
-    contentType = fetched.contentType;
-    await onRequest?.(
-      buildHttpGetRequestLog({
-        url: sourceUrl,
-        service: "HTTP",
-        target: `fallback фото · сцена ${sceneIndex + 1}/4`,
-        body: "загружаю фото товара с URL маркетплейса/сайта",
-        status: 200,
-        result: `${Math.max(1, Math.round(buffer.length / 1024))} KB · ${contentType}`,
-        runtime: "Railway",
-      })
-    );
-    try {
-      buffer = await compositeSceneWithDesign(buffer, script, sceneIndex);
-      contentType = "image/png";
-    } catch (compositeErr) {
-      console.warn(
-        `[scene-images] Design composite on fallback scene ${sceneIndex + 1}:`,
-        compositeErr instanceof Error ? compositeErr.message : compositeErr
-      );
-    }
-    imageUrl = await storeSceneImage(jobId, sceneIndex, buffer, contentType, upload);
-  } catch (fetchErr) {
-    const msg =
-      fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-    await onRequest?.(
-      buildHttpGetRequestLog({
-        url: sourceUrl,
-        service: "HTTP",
-        target: `fallback фото · сцена ${sceneIndex + 1}/4`,
-        body: "загружаю фото товара с URL маркетплейса/сайта",
-        status: 0,
-        result: `ошибка: ${msg.slice(0, 80)}`,
-        runtime: "Railway",
-      })
-    );
-    try {
-      const placeholder = await fetchImageBuffer(PLACEHOLDER_IMAGE_URL);
-      imageUrl = await storeSceneImage(
-        jobId,
-        sceneIndex,
-        placeholder.buffer,
-        placeholder.contentType,
-        upload
-      );
-    } catch {
-      /* keep placeholder URL */
-    }
-  }
-
-  await onProgress?.(sceneIndex, "complete", {
-    model: "fallback",
-    quality: "product-photo",
-    size: "site",
-    mode: "fallback",
-  });
-
-  return {
-    sceneIndex,
-    style: scene.style,
-    text: sceneHeadline(scene),
-    imageUrl,
-    prompt: "fallback:product-photo",
-  };
-}
-
-async function buildProductPhotoFallback(
+/** Dev-only mock: product photos with text overlay. Never used in production. */
+async function buildDevMockSceneImages(
   jobId: string,
   product: ProductCard,
   script: ReelScript,
   upload: SceneImageUploader,
   onProgress?: SceneImageProgress,
-  reason?: string,
   onRequest?: (payload: RequestLogPayload) => void | Promise<void>
 ): Promise<GenerateSceneImagesResult> {
   const results: SceneImage[] = [];
 
   for (let i = 0; i < 4; i++) {
-    results.push(
-      await buildSingleSceneFallback(
-        jobId,
-        product,
-        script,
-        i,
-        upload,
-        onProgress,
-        onRequest
-      )
-    );
+    const scene = script.scenes[i]!;
+    await onProgress?.(i, "start");
+
+    const idx = scene.imageIndex ?? i;
+    const sourceUrl =
+      product.images[idx % Math.max(product.images.length, 1)] ??
+      product.images[0] ??
+      PLACEHOLDER_IMAGE_URL;
+
+    let buffer: Buffer;
+    let contentType = "image/jpeg";
+    try {
+      const fetched = await fetchImageBuffer(sourceUrl);
+      buffer = fetched.buffer;
+      contentType = fetched.contentType;
+      await onRequest?.(
+        buildHttpGetRequestLog({
+          url: sourceUrl,
+          service: "HTTP",
+          target: `dev mock · сцена ${i + 1}/4`,
+          body: "локальный mock кадра",
+          status: 200,
+          result: `${Math.max(1, Math.round(buffer.length / 1024))} KB`,
+          runtime: "local",
+        })
+      );
+      buffer = await compositeSceneWithDesign(buffer, script, i);
+      contentType = "image/png";
+    } catch {
+      const placeholder = await fetchImageBuffer(PLACEHOLDER_IMAGE_URL);
+      buffer = placeholder.buffer;
+      contentType = placeholder.contentType;
+    }
+
+    const imageUrl = await storeSceneImage(jobId, i, buffer, contentType, upload);
+    await onProgress?.(i, "complete", {
+      model: "mock",
+      quality: "dev",
+      size: "site",
+      mode: "fallback",
+    });
+
+    results.push({
+      sceneIndex: i,
+      style: scene.style,
+      text: sceneHeadline(scene),
+      imageUrl,
+      prompt: "dev-mock:product-photo",
+    });
   }
 
-  return {
-    scenes: sceneImagesSchema.parse(results),
-    usedProductPhotoFallback: true,
-    fallbackReason: reason,
-  };
+  return { scenes: sceneImagesSchema.parse(results) };
 }
 
 export async function generateSceneImages(
@@ -199,24 +163,21 @@ export async function generateSceneImages(
 ): Promise<GenerateSceneImagesResult> {
   const scenes = script.scenes.slice(0, 4);
   if (scenes.length < 4) {
-    throw new Error(`Need 4 scenes, got ${scenes.length}`);
+    throw new SceneImageGenerationError(
+      `Need 4 scenes, got ${scenes.length}`
+    );
   }
 
-  const useMock =
-    process.env.MOCK_SCENE_IMAGES === "true" ||
-    !process.env.OPENAI_API_KEY?.trim();
+  assertCanGenerateSceneImages();
 
-  if (useMock) {
-    console.warn(
-      `[scene-images] MOCK/fallback — using product photos for job ${jobId}`
-    );
-    return buildProductPhotoFallback(
+  if (isDevSceneImageMockAllowed()) {
+    console.warn(`[scene-images] Dev mock scene images for job ${jobId}`);
+    return buildDevMockSceneImages(
       jobId,
       product,
       script,
       upload,
       onProgress,
-      "картинки · фото с сайта (MOCK_SCENE_IMAGES или нет OPENAI_API_KEY)",
       onRequest
     );
   }
@@ -251,38 +212,14 @@ export async function generateSceneImages(
       }));
     } catch (err) {
       if (isOpenAiCapacityError(err)) {
-        const detail =
-          err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[scene-images] OpenAI capacity error on scene ${i + 1}, using product photos:`,
-          detail
-        );
-        return buildProductPhotoFallback(
-          jobId,
-          product,
-          script,
-          upload,
-          onProgress,
-          `⚠ OpenAI биллинг: ${describeOpenAiCapacityError(err)}. Картинки — фото с сайта. ${OPENAI_BILLING_LOG_HINT}`,
-          onRequest
+        throw new SceneImageGenerationError(
+          `Не удалось сгенерировать кадры: ${describeOpenAiCapacityError(err)}. ${OPENAI_BILLING_LOG_HINT}`
         );
       }
-      console.warn(
-        `[scene-images] OpenAI error scene ${i + 1}, single-scene fallback:`,
-        err instanceof Error ? err.message : err
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new SceneImageGenerationError(
+        `Не удалось сгенерировать кадр ${i + 1}/4. Попробуйте снова. (${detail.slice(0, 120)})`
       );
-      results.push(
-        await buildSingleSceneFallback(
-          jobId,
-          product,
-          script,
-          i,
-          upload,
-          onProgress,
-          onRequest
-        )
-      );
-      continue;
     }
 
     const designLint = lintAllScenes(script, { backgroundOnly: true });

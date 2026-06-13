@@ -31,6 +31,7 @@ export function isFallbackSceneImage(
   const prompt = scene.prompt?.trim() ?? "";
   return (
     prompt.startsWith("fallback:") ||
+    prompt.startsWith("dev-mock:") ||
     prompt === "fallback:product-photo"
   );
 }

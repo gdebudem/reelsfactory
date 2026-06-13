@@ -3,6 +3,7 @@ import { Worker } from "bullmq";
 import { PrismaClient } from "@prisma/client";
 import {
   buildS3PutRequestLog,
+  isDevMockAllowed,
   type ProductCard,
   type ReelScript,
   type SceneImage,
@@ -57,6 +58,13 @@ function getRedisConnection() {
 if (!process.env.DATABASE_URL) {
   console.error(
     "[worker] FATAL: DATABASE_URL is not set. Add your Neon URL in Railway Variables and redeploy."
+  );
+  process.exit(1);
+}
+
+if (!process.env.OPENAI_API_KEY?.trim() && !isDevMockAllowed()) {
+  console.error(
+    "[worker] FATAL: OPENAI_API_KEY is not set. Add it in Railway Variables and redeploy."
   );
   process.exit(1);
 }
@@ -155,7 +163,7 @@ async function logWorkerReady() {
   );
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
   console.log(
-    `[worker] OpenAI images: ${openaiKey ? "configured" : "MISSING — will use product photos only"}`
+    `[worker] OpenAI images: ${openaiKey ? "configured" : isDevMockAllowed() ? "dev mock" : "MISSING"}`
   );
   const renderMode = getRenderMode();
   console.log(`[worker] Render mode: ${renderMode}`);

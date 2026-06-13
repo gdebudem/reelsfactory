@@ -1,5 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
-import { generateSceneImages, sceneImagesNeedRegeneration, DesignQaError } from "@reels-factory/scene-images";
+import {
+  generateSceneImages,
+  sceneImagesNeedRegeneration,
+  DesignQaError,
+  SceneImageGenerationError,
+} from "@reels-factory/scene-images";
 import type { SceneImageUploader } from "@reels-factory/scene-images";
 import {
   buildS3PutRequestLog,
@@ -9,7 +14,6 @@ import {
   type SceneImage,
 } from "@reels-factory/shared";
 import {
-  appendJobBillingLog,
   appendJobCostSummary,
   appendJobImageUsage,
   appendJobLog,
@@ -49,13 +53,28 @@ export async function processGenerateSceneImages(
 
   if (existing?.length) {
     console.log(
-      `[worker] Regenerating scene images for ${jobId} (broken or missing URLs)`
+      `[worker] Regenerating scene images for ${jobId} (broken URLs or non-AI frames)`
     );
     await appendJobLog(
       prisma,
       jobId,
-      "worker · перегенерация картинок (битые URL или fallback)"
+      "worker · перегенерация картинок (битые URL или не-AI кадры)"
     );
+  }
+
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    const msg = "Не удалось сгенерировать кадры. Попробуйте снова.";
+    await appendJobLog(
+      prisma,
+      jobId,
+      "картинки · OPENAI_API_KEY не задан на Railway worker",
+      "error"
+    );
+    await prisma.reelJob.update({
+      where: { id: jobId },
+      data: { status: "images_failed", errorMessage: msg },
+    });
+    return;
   }
 
   console.log(`[worker] Generating 4 scene images for ${jobId}`);
@@ -63,7 +82,7 @@ export async function processGenerateSceneImages(
   await appendJobLog(
     prisma,
     jobId,
-    `worker · генерация 4 картинок · товар="${product.title.slice(0, 48)}" · OpenAI images API`
+    `worker · генерация 4 AI-кадров · товар="${product.title.slice(0, 48)}" · OpenAI images API`
   );
 
   const promptOverrides = await loadPromptOverrides(prisma);
@@ -86,8 +105,8 @@ export async function processGenerateSceneImages(
     return url;
   };
 
-  const { scenes: sceneImages, usedProductPhotoFallback, fallbackReason } =
-    await generateSceneImages(
+  try {
+    const { scenes: sceneImages } = await generateSceneImages(
       jobId,
       product,
       script,
@@ -108,36 +127,44 @@ export async function processGenerateSceneImages(
       },
       promptOverrides,
       (payload) => appendJobRequestLog(prisma, jobId, payload)
-    ).catch(async (err) => {
-      if (err instanceof DesignQaError) {
-        const msg =
-          "Не удалось собрать кадры: текст не прошёл проверку дизайна. Попробуйте снова.";
-        await appendJobLog(prisma, jobId, `design QA · ${err.message}`, "error");
-        await prisma.reelJob.update({
-          where: { id: jobId },
-          data: { status: "design_qa_failed", errorMessage: msg },
-        });
-      }
-      throw err;
+    );
+
+    await appendJobCostSummary(prisma, jobId);
+
+    await prisma.reelJob.update({
+      where: { id: jobId },
+      data: {
+        sceneImagesJson: sceneImages,
+        status: "images_ready",
+        errorMessage: null,
+      },
     });
 
-  if (usedProductPhotoFallback && fallbackReason) {
-    if (fallbackReason.includes("OpenAI биллинг")) {
-      await appendJobBillingLog(prisma, jobId, fallbackReason);
-    } else {
-      await appendJobLog(prisma, jobId, fallbackReason);
+    console.log(`[worker] Scene images ready for ${jobId}`);
+  } catch (err) {
+    if (err instanceof DesignQaError) {
+      const msg =
+        "Не удалось собрать кадры: текст не прошёл проверку дизайна. Попробуйте снова.";
+      await appendJobLog(prisma, jobId, `design QA · ${err.message}`, "error");
+      await prisma.reelJob.update({
+        where: { id: jobId },
+        data: { status: "design_qa_failed", errorMessage: msg },
+      });
+      return;
     }
+
+    if (err instanceof SceneImageGenerationError) {
+      const msg = err.message.includes("Попробуйте")
+        ? err.message
+        : "Не удалось сгенерировать кадры. Попробуйте снова.";
+      await appendJobLog(prisma, jobId, `картинки · ${err.message}`, "error");
+      await prisma.reelJob.update({
+        where: { id: jobId },
+        data: { status: "images_failed", errorMessage: msg },
+      });
+      return;
+    }
+
+    throw err;
   }
-
-  await appendJobCostSummary(prisma, jobId);
-
-  await prisma.reelJob.update({
-    where: { id: jobId },
-    data: {
-      sceneImagesJson: sceneImages,
-      status: "images_ready",
-    },
-  });
-
-  console.log(`[worker] Scene images ready for ${jobId}`);
 }

@@ -33,6 +33,7 @@ export const JOB_STATUSES = [
   "script_failed",
   "generating_images",
   "image_generating",
+  "images_failed",
   "design_qa_failed",
   "images_ready",
   "storyboard_ready",
