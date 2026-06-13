@@ -78,7 +78,7 @@ CTA должен быть действием, НЕ «На сайт».
 
 Тон: {{tone}}
 
-templateId: minimal_product_reel_v2 (или problem_solution_v1 / expert_pick_v1 / marketplace_clean_v1 по типу товара)
+templateId: minimal_product_reel_v2 (или problem_solution_v1 / expert_pick_v1 / marketplace_clean_v1 / native_tiktok_v1)
 musicMood: energetic | trust | premium
 musicTrackId: upbeat_drive | steady_groove | smooth_pulse
 voiceoverStyle: calm_confident | energetic | expert
@@ -87,8 +87,8 @@ voiceoverStyle: calm_confident | energetic | expert
 - style: hook | pain | proof | cta
 - duration: 3.5 | 3.5 | 4 | 4
 - headline (max 8 words), subheadline optional
-- visualBrief: описание ФОНА без текста (для AI image)
-- motion: slow_zoom | push_in | product_reveal | button_pop
+- visualBrief: описание ТОЛЬКО фона/сцены БЕЗ текста (для AI image). Не дублируй headline.
+- motion: punch_in | push_in | product_reveal | button_pop | slow_zoom
 - imageIndex: 0–3
 - proof: bullets optional (max 2)
 - cta: buttonText — осмысленное действие

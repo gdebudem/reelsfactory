@@ -15,7 +15,7 @@ import {
   OPENAI_BILLING_LOG_HINT,
 } from "@reels-factory/shared";
 import { buildSceneImagePrompt } from "./prompts";
-import { lintAllScenes, sceneHeadline } from "@reels-factory/shared";
+import { lintAllScenes, sceneHeadline, planSceneVisuals, evaluateCreative } from "@reels-factory/shared";
 import { compositeSceneWithDesign } from "@reels-factory/design-renderer";
 import {
   fetchImageBuffer,
@@ -170,6 +170,14 @@ export async function generateSceneImages(
 
   assertCanGenerateSceneImages();
 
+  const visualPlans = planSceneVisuals(script, product);
+  const creativeEval = evaluateCreative(script, visualPlans);
+  if (creativeEval.needsRegeneration) {
+    console.warn(
+      `[scene-images] Creative QA issues for ${jobId}: ${creativeEval.issues.join(", ")}`
+    );
+  }
+
   if (isDevSceneImageMockAllowed()) {
     console.warn(`[scene-images] Dev mock scene images for job ${jobId}`);
     return buildDevMockSceneImages(
@@ -186,6 +194,7 @@ export async function generateSceneImages(
 
   for (let i = 0; i < 4; i++) {
     const scene = scenes[i]!;
+    const visualPlan = visualPlans[i]!;
     await onProgress?.(i, "start");
 
     const imageIdx = scene.imageIndex ?? i;
@@ -208,6 +217,7 @@ export async function generateSceneImages(
         sceneIndex: i,
         referenceImageUrl,
         promptOverrides,
+        visualPlan,
         onRequest,
       }));
     } catch (err) {
@@ -245,7 +255,8 @@ export async function generateSceneImages(
       script,
       scene,
       i,
-      promptOverrides
+      promptOverrides,
+      visualPlan
     );
 
     results.push({

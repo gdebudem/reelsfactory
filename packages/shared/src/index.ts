@@ -332,7 +332,18 @@ export {
 
 export {
   scoreCreativeQuality,
+  evaluateCreative,
   type CreativeQualityScore,
+  type CreativeEvaluation,
 } from "./creative-qa";
+
+export {
+  planSceneVisuals,
+  validateVisualDiversity,
+  buildImagePromptFromPlan,
+  type PlannedScene,
+  type SceneVisualPlan,
+  type SceneOverlayPlan,
+} from "./scene-visual-planner";
 
 export { lintSceneDesign, lintAllScenes, type DesignLintResult } from "./design-linter";

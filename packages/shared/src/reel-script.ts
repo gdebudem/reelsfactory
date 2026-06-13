@@ -5,6 +5,7 @@ export const sceneMotionSchema = z.enum([
   "push_in",
   "product_reveal",
   "button_pop",
+  "punch_in",
 ]);
 
 export const voiceoverStyleSchema = z.enum([
@@ -18,6 +19,7 @@ export const reelTemplateIdSchema = z.enum([
   "problem_solution_v1",
   "expert_pick_v1",
   "marketplace_clean_v1",
+  "native_tiktok_v1",
   "viral_v1",
   "promo",
   "features",
@@ -92,7 +94,7 @@ export type ReelScript = z.infer<typeof reelScriptSchema>;
 const SCENE_STYLES_V2 = ["hook", "pain", "proof", "cta"] as const;
 const DEFAULT_DURATIONS = [3.5, 3.5, 4, 4];
 const DEFAULT_MOTIONS = [
-  "slow_zoom",
+  "punch_in",
   "push_in",
   "product_reveal",
   "button_pop",
@@ -119,7 +121,8 @@ export function isV2Script(script: ReelScript | null | undefined): boolean {
     script.templateId === "minimal_product_reel_v2" ||
     script.templateId === "problem_solution_v1" ||
     script.templateId === "expert_pick_v1" ||
-    script.templateId === "marketplace_clean_v1"
+    script.templateId === "marketplace_clean_v1" ||
+    script.templateId === "native_tiktok_v1"
   ) {
     return script.scenes.length >= 4;
   }

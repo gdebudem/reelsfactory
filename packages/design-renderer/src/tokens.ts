@@ -12,6 +12,8 @@ export const DESIGN_TOKENS = {
     button: "Manrope, Inter, Geologica, Golos Text, Arial, sans-serif",
   },
   colors: {
+    textDark: "#101820",
+    textLight: "#F7F3EA",
     dark: "#101820",
     light: "#F7F3EA",
     accent: "#FF5A2C",
@@ -21,6 +23,12 @@ export const DESIGN_TOKENS = {
     buttonBg: "#FF5A2C",
     buttonText: "#FFFFFF",
     bullet: "#F7F3EA",
+    panelLight: "rgba(247, 243, 234, 0.92)",
+    panelDark: "rgba(16, 24, 32, 0.72)",
+  },
+  radii: {
+    card: 28,
+    button: 999,
   },
   headline: {
     maxFontSize: 64,

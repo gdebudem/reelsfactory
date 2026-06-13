@@ -10,6 +10,8 @@ import {
   resolvePromptText,
   sanitizeCtaText,
   scoreCreativeQuality,
+  evaluateCreative,
+  planSceneVisuals,
   type ProductCard,
   type ProductIntel,
   type PromptOverrides,
@@ -334,22 +336,30 @@ export async function generateReelScript(
 
     let parsed = reelScriptSchema.parse(JSON.parse(content));
     let script = finalizeScript(parsed, input);
+    let visualPlans = planSceneVisuals(script, input.product);
+    let creativeEval = evaluateCreative(script, visualPlans, confidence);
     let qualityScore = scoreCreativeQuality(script, confidence);
 
-    if (qualityScore.needsRegeneration) {
+    if (qualityScore.needsRegeneration || creativeEval.needsRegeneration) {
+      const flags = [
+        ...qualityScore.riskFlags,
+        ...creativeEval.issues,
+      ];
       await requestLogger?.log?.(
-        `QA сценария · перегенерация · flags: ${qualityScore.riskFlags.join(", ")}`
+        `QA сценария · перегенерация · flags: ${[...new Set(flags)].join(", ")}`
       );
       const regen = await callScriptModel(
         apiKey,
         system,
-        buildUserPayload(qualityScore.riskFlags),
+        buildUserPayload(flags),
         requestLogger,
-        `regen flags: ${qualityScore.riskFlags.join(",")}`
+        `regen flags: ${flags.join(",")}`
       );
       if (regen.content) {
         parsed = reelScriptSchema.parse(JSON.parse(regen.content));
         script = finalizeScript(parsed, input);
+        visualPlans = planSceneVisuals(script, input.product);
+        creativeEval = evaluateCreative(script, visualPlans, confidence);
         qualityScore = scoreCreativeQuality(script, confidence);
         usage = regen.usage ?? usage;
       }

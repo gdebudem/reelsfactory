@@ -1,5 +1,7 @@
 import type { ProductConfidence } from "./product-confidence";
 import type { ReelScript, ReelScene } from "./reel-script";
+import type { PlannedScene } from "./scene-visual-planner";
+import { validateVisualDiversity } from "./scene-visual-planner";
 
 export type CreativeQualityScore = {
   hookScore: number;
@@ -14,6 +16,8 @@ export type CreativeQualityScore = {
 
 const GENERIC_PHRASES = [
   /краткое описание/i,
+  /турбо режим/i,
+  /самодиагностика/i,
   /лучшее качество/i,
   /выгодная покупка/i,
   /^на сайт$/i,
@@ -104,6 +108,60 @@ export function scoreCreativeQuality(
     proofStrength,
     ctaClarity,
     riskFlags,
+    needsRegeneration,
+  };
+}
+
+export type CreativeEvaluation = {
+  passed: boolean;
+  score: number;
+  issues: string[];
+  needsRegeneration: boolean;
+};
+
+export function evaluateCreative(
+  script: ReelScript,
+  plans: PlannedScene[],
+  confidence?: ProductConfidence
+): CreativeEvaluation {
+  const qa = scoreCreativeQuality(script, confidence);
+  const visualIssues = validateVisualDiversity(plans);
+
+  const issues = [...new Set([...qa.riskFlags, ...visualIssues])];
+
+  for (const plan of plans) {
+    const h = plan.overlay.headline;
+    if (/краткое описание/i.test(h)) issues.push("generic_description");
+    if (plan.role !== "cta" && plan.overlay.buttonText) {
+      issues.push("button_on_wrong_scene");
+    }
+    if (plan.role === "proof" && !plan.overlay.bullets?.length) {
+      issues.push("proof_missing_bullets");
+    }
+    if (/headline|buttonText|CTA/i.test(plan.visual.prompt)) {
+      issues.push("text_in_image_prompt");
+    }
+  }
+
+  const score =
+    (qa.hookScore +
+      qa.audienceSpecificity +
+      qa.textReadability +
+      qa.proofStrength +
+      qa.ctaClarity +
+      qa.visualCleanliness) /
+    6;
+
+  const needsRegeneration =
+    qa.needsRegeneration ||
+    visualIssues.length > 0 ||
+    issues.includes("generic_description") ||
+    issues.includes("text_in_image_prompt");
+
+  return {
+    passed: !needsRegeneration,
+    score,
+    issues,
     needsRegeneration,
   };
 }

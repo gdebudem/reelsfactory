@@ -5,6 +5,7 @@ import type {
   ImageGenerateParams,
   ImagesResponse,
 } from "openai/resources/images.js";
+import type { PlannedScene } from "@reels-factory/shared";
 import {
   buildReferenceEditPrompt,
   buildSceneImagePrompt,
@@ -140,6 +141,7 @@ export type SceneGenerationInput = {
   sceneIndex: number;
   referenceImageUrl?: string;
   promptOverrides?: PromptOverrides;
+  visualPlan?: PlannedScene;
   onRequest?: (payload: RequestLogPayload) => void | Promise<void>;
 };
 
@@ -167,6 +169,7 @@ export async function generateSceneImageBuffer(
     sceneIndex,
     referenceImageUrl,
     promptOverrides,
+    visualPlan,
     onRequest,
   } = input;
 
@@ -183,7 +186,8 @@ export async function generateSceneImageBuffer(
       script,
       scene,
       sceneIndex,
-      promptOverrides
+      promptOverrides,
+      visualPlan
     );
     try {
       const editSize = String(getEditSize(model));
@@ -230,7 +234,8 @@ export async function generateSceneImageBuffer(
     script,
     scene,
     sceneIndex,
-    promptOverrides
+    promptOverrides,
+    visualPlan
   );
   const quality = String(getQuality(model) ?? "standard");
   const size = String(getGenerateSize(model));

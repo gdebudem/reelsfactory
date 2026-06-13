@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ProductCard, ReelScript, SceneImage } from "@reels-factory/shared";
+import { sceneDuration } from "@reels-factory/shared";
 import { VIDEO_CONFIG } from "@reels-factory/video-templates";
 import { pickMusicTrack } from "./music.js";
 import { musicFileExists, resolveMusicPath } from "./ensureMusic.js";
@@ -17,8 +18,7 @@ const OUT_W = 720;
 const OUT_H = 1280;
 const FPS = VIDEO_CONFIG.fps;
 const DURATION_SEC = VIDEO_CONFIG.durationInFrames / FPS;
-const XFADE_SEC = 0.25;
-const CLIP_SEC = 3.75;
+const XFADE_SEC = 0.12;
 
 const TEXT_STYLE: Record<
   string,
@@ -87,7 +87,9 @@ export async function renderViralReelWithFfmpeg(
       );
     }
 
-    const filter = buildViralFilter(scenes, fontPath, !useAiImages);
+    const clipDurations = scenes.map((scene, i) => sceneDuration(scene, i));
+    const totalSec = clipDurations.reduce((a, b) => a + b, 0);
+    const filter = buildViralFilter(scenes, clipDurations, fontPath, !useAiImages);
     // No -loop: zoompan d=frames generates clip length from a single image frame
     const args = ["-y", ...imagePaths.flatMap((p) => ["-i", p])];
 
@@ -102,7 +104,7 @@ export async function renderViralReelWithFfmpeg(
       "[vout]",
       ...(hasMusic ? ["-map", `${imagePaths.length}:a`] : []),
       "-t",
-      String(DURATION_SEC),
+      String(totalSec > 0 ? totalSec : DURATION_SEC),
       "-r",
       String(FPS),
       "-c:v",
@@ -120,7 +122,7 @@ export async function renderViralReelWithFfmpeg(
             "-b:a",
             "128k",
             "-af",
-            `afade=t=in:st=0:d=0.5,afade=t=out:st=${DURATION_SEC - 1}:d=1,volume=0.9,alimiter=limit=0.95`,
+            `afade=t=in:st=0:d=0.5,afade=t=out:st=${(totalSec > 0 ? totalSec : DURATION_SEC) - 1}:d=1,volume=0.9,alimiter=limit=0.95`,
           ]
         : []),
       "-movflags",
@@ -139,23 +141,39 @@ export async function renderViralReelWithFfmpeg(
   }
 }
 
+function motionZoompan(
+  motion: string | undefined,
+  frames: number
+): string {
+  switch (motion) {
+    case "punch_in":
+    case "slow_zoom":
+      return `zoompan=z='min(zoom+0.0022,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`;
+    case "push_in":
+      return `zoompan=z='1.04':x='if(lte(on,1),0,x+1.2)':y='ih/8-(ih/zoom/8)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`;
+    case "product_reveal":
+      return `zoompan=z='min(zoom+0.0028,1.12)':x='iw/2-(iw/zoom/2)':y='ih*0.55-(ih/zoom/2)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`;
+    case "button_pop":
+      return `zoompan=z='if(lte(zoom,1.0),1.07,max(1.0,zoom-0.0015))':x='iw/2-(iw/zoom/2)':y='ih*0.58-(ih/zoom/2)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`;
+    default:
+      return `zoompan=z='min(zoom+0.0018,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`;
+  }
+}
+
 function buildViralFilter(
   scenes: ReelScript["scenes"],
+  clipDurations: number[],
   fontPath: string,
   overlayText = true
 ): string {
-  const frames = Math.round(CLIP_SEC * FPS);
-  const pans = [
-    `zoompan=z='min(zoom+0.0015,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`,
-    `zoompan=z='1.05':x='if(lte(on,1),0,x+1)':y='0':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`,
-    `zoompan=z='min(zoom+0.002,1.12)':x='iw/4-(iw/zoom/4)':y='ih/4-(ih/zoom/4)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`,
-    `zoompan=z='if(lte(zoom,1.0),1.06,max(1.0,zoom-0.001))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${OUT_W}x${OUT_H}:fps=${FPS}`,
-  ];
-
   const lines: string[] = [];
+  let offset = 0;
+
   for (let i = 0; i < 4; i++) {
-    const pan = pans[i] ?? pans[0]!;
+    const clipSec = clipDurations[i] ?? 3.75;
+    const frames = Math.max(8, Math.round(clipSec * FPS));
     const scene = scenes[i];
+    const pan = motionZoompan(scene?.motion, frames);
     const drawtext = overlayText ? buildDrawtextFilter(fontPath, scene) : null;
     const filters = [
       `scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease`,
@@ -166,17 +184,19 @@ function buildViralFilter(
       "format=yuv420p",
     ];
     lines.push(`[${i}:v]${filters.join(",")}[v${i}]`);
+    if (i > 0) {
+      offset += (clipDurations[i - 1] ?? 3.75) - XFADE_SEC;
+      const prev = i === 1 ? "v0" : `vx${i - 1}`;
+      const out = i === 3 ? "vout" : `vx${i}`;
+      lines.push(
+        `[${prev}][v${i}]xfade=transition=fade:duration=${XFADE_SEC}:offset=${Math.max(0, offset).toFixed(3)}[${out}]`
+      );
+    }
   }
 
-  lines.push(
-    `[v0][v1]xfade=transition=fade:duration=${XFADE_SEC}:offset=${CLIP_SEC - XFADE_SEC}[vx1]`
-  );
-  lines.push(
-    `[vx1][v2]xfade=transition=fade:duration=${XFADE_SEC}:offset=${CLIP_SEC * 2 - XFADE_SEC * 2}[vx2]`
-  );
-  lines.push(
-    `[vx2][v3]xfade=transition=fade:duration=${XFADE_SEC}:offset=${CLIP_SEC * 3 - XFADE_SEC * 3}[vout]`
-  );
+  if (lines.length === 1) {
+    return lines[0]!.replace("[v0]", "[vout]");
+  }
 
   return lines.join(";");
 }
