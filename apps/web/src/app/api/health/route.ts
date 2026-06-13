@@ -11,6 +11,8 @@ import {
   tavilyProductionHint,
 } from "@/lib/env";
 import { DEFAULT_OPENAI_MODEL } from "@reels-factory/ai-script";
+import { syncWorkerSecretsFromEnv } from "@reels-factory/shared";
+import { prisma } from "@/lib/prisma";
 
 import { getQueueMode, pingRedis } from "@/lib/queue";
 
@@ -22,6 +24,15 @@ export async function GET() {
       redisOk = await pingRedis();
     } catch {
       redisOk = false;
+    }
+  }
+
+  let workerSecretsSynced: string[] = [];
+  if (hasDatabaseConfigured() && hasOpenAiConfigured()) {
+    try {
+      workerSecretsSynced = await syncWorkerSecretsFromEnv(prisma);
+    } catch (err) {
+      console.warn("[health] worker secret sync failed:", err);
     }
   }
 
@@ -43,5 +54,6 @@ export async function GET() {
     tavilyMode: getTavilyStatus(),
     tavilyProductionReady: isTavilyProductionReady(),
     tavilyProductionHint: tavilyProductionHint(),
+    workerSecretsSynced,
   });
 }

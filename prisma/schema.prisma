@@ -99,6 +99,13 @@ model SiteSettings {
   updatedAt   DateTime @updatedAt
 }
 
+/// Shared secrets for Railway worker when platform env vars are empty (synced from Vercel).
+model WorkerSecret {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 model Payment {
   id              String   @id @default(cuid())
   reelJobId       String

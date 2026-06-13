@@ -347,3 +347,12 @@ export {
 } from "./scene-visual-planner";
 
 export { lintSceneDesign, lintAllScenes, type DesignLintResult } from "./design-linter";
+
+export {
+  WORKER_SECRET_KEYS,
+  ensureWorkerSecretsTable,
+  upsertWorkerSecret,
+  loadWorkerSecret,
+  syncWorkerSecretsFromEnv,
+  type WorkerSecretKey,
+} from "./worker-secrets";

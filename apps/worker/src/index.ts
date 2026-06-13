@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   buildS3PutRequestLog,
   isDevMockAllowed,
+  loadWorkerSecret,
   type ProductCard,
   type ReelScript,
   type SceneImage,
@@ -27,6 +28,7 @@ import {
 import { startPostgresQueueWorker } from "./postgres-queue.js";
 
 const prisma = new PrismaClient();
+const QUEUE_NAME = "render-reel";
 
 function getQueueMode(): "postgres" | "redis" {
   const mode = process.env.QUEUE_MODE?.trim().toLowerCase();
@@ -54,30 +56,6 @@ function getRedisConnection() {
     maxRetriesPerRequest: null as null,
   };
 }
-
-if (!process.env.DATABASE_URL) {
-  console.error(
-    "[worker] FATAL: DATABASE_URL is not set. Add your Neon URL in Railway Variables and redeploy."
-  );
-  process.exit(1);
-}
-
-if (!process.env.OPENAI_API_KEY?.trim() && !isDevMockAllowed()) {
-  console.error(
-    "[worker] FATAL: OPENAI_API_KEY is not set. Add it in Railway Variables and redeploy."
-  );
-  process.exit(1);
-}
-
-process.on("unhandledRejection", (reason) => {
-  console.error("[worker] unhandledRejection:", reason);
-});
-process.on("uncaughtException", (err) => {
-  console.error("[worker] uncaughtException:", err);
-  process.exit(1);
-});
-
-const QUEUE_NAME = "render-reel";
 
 async function refreshProduct(
   jobId: string,
@@ -187,57 +165,104 @@ async function logWorkerReady() {
   }
 }
 
-const queueMode = getQueueMode();
+async function bootstrapOpenAiFromDatabase(): Promise<void> {
+  if (process.env.OPENAI_API_KEY?.trim() || isDevMockAllowed()) return;
 
-if (queueMode === "redis" && process.env.REDIS_URL) {
-  const connection = getRedisConnection();
-  const worker = new Worker(
-    QUEUE_NAME,
-    async (job) => {
-      const jobId = job.data.jobId as string;
-      const phase = job.data.phase as string | undefined;
-      try {
-        if (phase === "scene_images") {
-          console.log(`[worker] Generating scene images for ${jobId}`);
-          await processGenerateSceneImages(prisma, jobId);
-          return;
-        }
-        if (phase !== "render") {
-          console.log(`[worker] Skip job ${jobId} phase=${phase ?? "none"}`);
-          return;
-        }
-        console.log(`[worker] Rendering reel job ${jobId}`);
-        await processRender(jobId);
-        console.log(`[worker] Done render ${jobId}`);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[worker] Failed ${jobId}:`, message);
-        await appendJobFailureLog(prisma, jobId, message);
-        await prisma.reelJob.update({
-          where: { id: jobId },
-          data: { status: "failed", errorMessage: message },
-        });
-        throw err;
-      }
-    },
-    { connection, concurrency: 1 }
-  );
-
-  worker.on("ready", () => {
-    void logWorkerReady();
-    console.log(`[worker] Listening on Redis queue "${QUEUE_NAME}" (render only)`);
-  });
-
-  process.on("SIGINT", async () => {
-    await worker.close();
-    await prisma.$disconnect();
-    process.exit(0);
-  });
-} else {
-  void logWorkerReady().then(() =>
-    startPostgresQueueWorker(prisma, {
-      onGenerateImages: (jobId) => processGenerateSceneImages(prisma, jobId),
-      onRender: processRender,
-    })
-  );
+  try {
+    const fromDb = await loadWorkerSecret(prisma, "OPENAI_API_KEY");
+    if (fromDb) {
+      process.env.OPENAI_API_KEY = fromDb;
+      console.log(
+        "[worker] OpenAI: loaded from shared database (synced from Vercel)"
+      );
+    }
+  } catch (err) {
+    console.warn("[worker] Could not load OpenAI key from database:", err);
+  }
 }
+
+async function startWorker(): Promise<void> {
+  if (!process.env.DATABASE_URL) {
+    console.error(
+      "[worker] FATAL: DATABASE_URL is not set. Add your Neon URL in Railway Variables and redeploy."
+    );
+    process.exit(1);
+  }
+
+  await bootstrapOpenAiFromDatabase();
+
+  if (!process.env.OPENAI_API_KEY?.trim() && !isDevMockAllowed()) {
+    console.error(
+      "[worker] FATAL: OPENAI_API_KEY is not set. Add it in Railway Variables and redeploy, or open /api/health on Vercel to sync via database."
+    );
+    process.exit(1);
+  }
+
+  const queueMode = getQueueMode();
+
+  if (queueMode === "redis" && process.env.REDIS_URL) {
+    const connection = getRedisConnection();
+    const worker = new Worker(
+      QUEUE_NAME,
+      async (job) => {
+        const jobId = job.data.jobId as string;
+        const phase = job.data.phase as string | undefined;
+        try {
+          if (phase === "scene_images") {
+            console.log(`[worker] Generating scene images for ${jobId}`);
+            await processGenerateSceneImages(prisma, jobId);
+            return;
+          }
+          if (phase !== "render") {
+            console.log(`[worker] Skip job ${jobId} phase=${phase ?? "none"}`);
+            return;
+          }
+          console.log(`[worker] Rendering reel job ${jobId}`);
+          await processRender(jobId);
+          console.log(`[worker] Done render ${jobId}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[worker] Failed ${jobId}:`, message);
+          await appendJobFailureLog(prisma, jobId, message);
+          await prisma.reelJob.update({
+            where: { id: jobId },
+            data: { status: "failed", errorMessage: message },
+          });
+          throw err;
+        }
+      },
+      { connection, concurrency: 1 }
+    );
+
+    worker.on("ready", () => {
+      void logWorkerReady();
+      console.log(`[worker] Listening on Redis queue "${QUEUE_NAME}" (render only)`);
+    });
+
+    process.on("SIGINT", async () => {
+      await worker.close();
+      await prisma.$disconnect();
+      process.exit(0);
+    });
+    return;
+  }
+
+  await logWorkerReady();
+  startPostgresQueueWorker(prisma, {
+    onGenerateImages: (jobId) => processGenerateSceneImages(prisma, jobId),
+    onRender: processRender,
+  });
+}
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[worker] unhandledRejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[worker] uncaughtException:", err);
+  process.exit(1);
+});
+
+void startWorker().catch((err) => {
+  console.error("[worker] startup failed:", err);
+  process.exit(1);
+});

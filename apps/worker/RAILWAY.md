@@ -19,6 +19,12 @@ Railpack **не подходит** для Remotion (нет `libnspr4`).
 
 Worker exits on startup if `OPENAI_API_KEY` is missing (production). Scene images are **always** generated via OpenAI — no product-photo fallback.
 
+**Auto-fix (no Railway CLI):** Vercel syncs `OPENAI_API_KEY` into shared Neon table `WorkerSecret` on each `/api/health` request. Railway worker loads it from DB when the Railway variable is empty.
+
+After deploy: open `https://web-omega-ochre-29.vercel.app/api/health` once, then **Redeploy** worker on Railway.
+
+Manual fix (preferred long-term):
+
 ## Crash: `DATABASE_URL is not set`
 
 Worker exits immediately if `DATABASE_URL` is missing in **Railway Variables** (not Vercel).
