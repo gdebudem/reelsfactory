@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { generateSceneImages, sceneImagesNeedRegeneration } from "@reels-factory/scene-images";
+import { generateSceneImages, sceneImagesNeedRegeneration, DesignQaError } from "@reels-factory/scene-images";
 import type { SceneImageUploader } from "@reels-factory/scene-images";
 import {
   buildS3PutRequestLog,
@@ -108,7 +108,18 @@ export async function processGenerateSceneImages(
       },
       promptOverrides,
       (payload) => appendJobRequestLog(prisma, jobId, payload)
-    );
+    ).catch(async (err) => {
+      if (err instanceof DesignQaError) {
+        const msg =
+          "Не удалось собрать кадры: текст не прошёл проверку дизайна. Попробуйте снова.";
+        await appendJobLog(prisma, jobId, `design QA · ${err.message}`, "error");
+        await prisma.reelJob.update({
+          where: { id: jobId },
+          data: { status: "design_qa_failed", errorMessage: msg },
+        });
+      }
+      throw err;
+    });
 
   if (usedProductPhotoFallback && fallbackReason) {
     if (fallbackReason.includes("OpenAI биллинг")) {

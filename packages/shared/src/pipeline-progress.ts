@@ -614,6 +614,8 @@ function statusDefaultActiveStep(status: string): PipelineStepId | null {
   if (status === "generating_images" || status === "image_generating") {
     return "generate_image_1";
   }
+  if (status === "script_failed") return "write_script";
+  if (status === "design_qa_failed") return "generate_image_1";
   if (status === "render_queued" || status === "rendering") {
     return "assemble_video";
   }

@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
     "@reels-factory/product-parser",
     "@reels-factory/ai-script",
     "@reels-factory/scene-images",
+    "@reels-factory/design-renderer",
+    "@reels-factory/product-intel",
   ],
   images: {
     remotePatterns: [

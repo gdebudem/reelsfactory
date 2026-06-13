@@ -1,4 +1,4 @@
-import type { ReelScript } from "@reels-factory/shared";
+import { sceneHeadline, type ReelScript } from "@reels-factory/shared";
 
 const SCENE_STYLE_LABEL: Record<string, string> = {
   headline: "Заголовок",
@@ -77,7 +77,7 @@ export function ScriptPanel({ script }: { script: ReelScript }) {
                   {SCENE_STYLE_LABEL[scene.style] ?? scene.style}
                 </span>
               )}
-              <p className="mt-1 text-slate-800">{scene.text}</p>
+              <p className="mt-1 text-slate-800">{sceneHeadline(scene)}</p>
             </li>
           ))}
         </ol>

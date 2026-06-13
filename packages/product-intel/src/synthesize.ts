@@ -1,5 +1,6 @@
 import {
   buildOpenAiChatRequestLog,
+  createOpenAiChatCompletion,
   getOpenAiModel,
   describeOpenAiCapacityError,
   isOpenAiCapacityError,
@@ -11,7 +12,6 @@ import {
   type ProductIntel,
   type PromptOverrides,
 } from "@reels-factory/shared";
-import OpenAI from "openai";
 import type { TavilyResult } from "./tavily";
 import type { ResearchProgressReporter } from "./progress";
 import { noopReporter } from "./progress";
@@ -70,11 +70,6 @@ export async function synthesizeProductIntel(
     return buildIntelFromProductOnly(product, marketplaceListings);
   }
 
-  const openai = new OpenAI({
-    apiKey,
-    timeout: Number(process.env.OPENAI_TIMEOUT_MS ?? 55_000),
-    maxRetries: 1,
-  });
   const model = getOpenAiModel();
 
   const system = resolvePromptText("intel_system", promptOverrides);
@@ -104,7 +99,7 @@ export async function synthesizeProductIntel(
 
   const requestBodySummary = [
     "response_format=json_object",
-    "temperature=0.3",
+    "no_temperature (gpt-5.x)",
     `snippets=${searchResults.length}`,
     `marketplace=${marketplaceListings.length}`,
     `reviews=${product.reviews?.length ?? 0}`,
@@ -112,14 +107,14 @@ export async function synthesizeProductIntel(
   ].join(" · ");
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await createOpenAiChatCompletion({
+      apiKey,
       model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
+      jsonMode: true,
     });
 
     const usage = completion.usage;
@@ -146,7 +141,7 @@ export async function synthesizeProductIntel(
       });
     }
 
-    const content = completion.choices[0]?.message?.content;
+    const content = completion.content;
     if (!content) return buildIntelFromProductOnly(product, marketplaceListings);
 
     const parsed = JSON.parse(content) as Record<string, unknown>;

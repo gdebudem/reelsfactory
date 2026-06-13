@@ -15,6 +15,7 @@
     "@reels-factory/product-intel": "*",
     "@reels-factory/pipeline-store": "*",
     "@reels-factory/product-parser": "*",
+    "@reels-factory/design-renderer": "*",
     "@reels-factory/scene-images": "*",
     "@reels-factory/shared": "*",
     "@reels-factory/video-templates": "*",

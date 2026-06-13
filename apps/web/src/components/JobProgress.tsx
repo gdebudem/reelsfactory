@@ -142,12 +142,18 @@ export function JobProgress({ jobId }: { jobId: string }) {
     );
   }
 
-  if (job.status === "failed") {
+  if (job.status === "failed" || job.status === "script_failed" || job.status === "design_qa_failed") {
+    const userMessage =
+      job.status === "script_failed"
+        ? (job.errorMessage ?? "Не удалось сгенерировать сценарий. Попробуйте снова.")
+        : job.status === "design_qa_failed"
+          ? (job.errorMessage ?? "Кадры не прошли проверку дизайна. Попробуйте снова.")
+          : job.errorMessage;
     return (
       <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
         <div className="space-y-4">
           <p className="text-lg font-semibold text-red-800">Ошибка</p>
-          <p className="text-sm text-red-600">{job.errorMessage}</p>
+          <p className="text-sm text-red-600">{userMessage}</p>
           <button
             type="button"
             onClick={() => router.push("/create")}

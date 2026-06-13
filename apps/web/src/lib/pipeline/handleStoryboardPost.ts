@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { persistJobLog } from "@reels-factory/pipeline-store";
 import { sceneImagesNeedRegeneration } from "@reels-factory/scene-images";
 import type { SceneImage } from "@reels-factory/shared";
@@ -43,6 +44,39 @@ export async function handleStoryboardPost(
   const job = await prisma.reelJob.findUnique({ where: { id: jobId } });
   if (!job) {
     return { ok: false, status: 404, error: "Не найдено" };
+  }
+
+  if (job.status === "script_failed") {
+    await persistJobLog(prisma, jobId, "сценарий · повторная генерация", "info");
+    await prisma.reelJob.update({
+      where: { id: jobId },
+      data: {
+        status: "scripting",
+        errorMessage: null,
+        scriptJson: Prisma.JsonNull,
+      },
+    });
+    try {
+      const status = await finishStoryboard(jobId);
+      return { ok: true, status, resumed: true };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Ошибка раскадровки";
+      return { ok: false, status: 500, error: message };
+    }
+  }
+
+  if (job.status === "design_qa_failed") {
+    await persistJobLog(prisma, jobId, "картинки · повтор после design QA", "info");
+    await prisma.reelJob.update({
+      where: { id: jobId },
+      data: {
+        status: "generating_images",
+        errorMessage: null,
+        sceneImagesJson: Prisma.JsonNull,
+      },
+    });
+    await enqueueSceneImagesJob(jobId);
+    return { ok: true, status: "generating_images", resumed: true };
   }
 
   if (job.status === "generating_images" || job.status === "image_generating") {

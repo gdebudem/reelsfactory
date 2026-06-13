@@ -10,6 +10,17 @@ export async function POST(req: Request) {
     const input = generateScriptRequestSchema.parse(body);
     const result = await generateReelScript(input);
 
+    if (result.failed || !result.script) {
+      return NextResponse.json(
+        {
+          error:
+            result.errorMessage ??
+            "Не удалось сгенерировать сценарий. Попробуйте снова.",
+        },
+        { status: 500 }
+      );
+    }
+
     if (input.jobId) {
       if (!hasDatabaseConfigured()) {
         const p = envProblemResponse("db");
@@ -24,7 +35,11 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ script: result.script, usage: result.usage });
+    return NextResponse.json({
+      script: result.script,
+      usage: result.usage,
+      qualityScore: result.qualityScore,
+    });
   } catch (e) {
     console.error("[generate-script]", e);
     return NextResponse.json(

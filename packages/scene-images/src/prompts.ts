@@ -1,20 +1,34 @@
 import type { ProductCard, ReelScript, PromptOverrides } from "@reels-factory/shared";
-import { resolvePromptText } from "@reels-factory/shared";
+import { resolvePromptText, sceneVisualBrief, sceneHeadline } from "@reels-factory/shared";
 
 type MusicMood = "energetic" | "trust" | "premium";
 
-function formatPrice(product: ProductCard): string {
-  if (product.price == null) return "";
-  const value = Math.round(product.price).toLocaleString("ru-RU");
-  return product.currency === "USD" ? `$${value}` : `${value} ₽`;
-}
+const BACKGROUND_ONLY_BASE = `You are generating ONLY the background/product visual for a vertical product Reel.
+
+Important:
+- NO text
+- NO letters
+- NO captions
+- NO logos except the original logo already visible on the product
+- NO poster design
+- NO fake UI
+- NO badges
+- NO typography
+
+Use the reference product image accurately.
+Keep the product realistic, clean, proportional, not distorted.
+Create a premium minimal commercial scene.
+Leave clean negative space for text overlay.
+Lighting: soft, modern, high-end.
+Composition: product hero, 9:16, mobile-first, safe top and bottom margins.
+Style: premium minimal, not cartoon, not marketplace banner, not noisy.`;
 
 export function buildVisualSeriesBrief(
   script: ReelScript,
   product: ProductCard,
   overrides?: PromptOverrides
 ): string {
-  const mood = (script.musicMood ?? "energetic") as MusicMood;
+  const mood = (script.musicMood ?? "trust") as MusicMood;
   const paletteId =
     mood === "trust"
       ? "scene_mood_trust_palette"
@@ -27,25 +41,17 @@ export function buildVisualSeriesBrief(
       : mood === "premium"
         ? "scene_mood_premium_lighting"
         : "scene_mood_energetic_lighting";
-  const typographyId =
-    mood === "trust"
-      ? "scene_mood_trust_typography"
-      : mood === "premium"
-        ? "scene_mood_premium_typography"
-        : "scene_mood_energetic_typography";
 
   const artPalette = resolvePromptText(paletteId, overrides);
   const artLighting = resolvePromptText(lightingId, overrides);
-  const artTypography = resolvePromptText(typographyId, overrides);
 
   return [
-    "VISUAL SERIES (keep identical look across all 4 frames):",
+    "VISUAL SERIES (identical look across 4 frames, backgrounds only):",
     `Mood: ${mood}.`,
     `Palette: ${artPalette}.`,
     `Lighting: ${artLighting}.`,
-    `Typography system: ${artTypography}.`,
     product.brand ? `Brand to respect: ${product.brand}.` : "",
-    "Same font family, margin system, and color grading on every frame.",
+    "Same environment style and color grading. NO TEXT on any frame.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -75,27 +81,24 @@ export function buildSceneImagePrompt(
 ): string {
   const style = scene.style ?? "hook";
   const blueprint = getBlueprint(style, overrides);
-  const price = formatPrice(product);
-  const emphasis = scene.emphasis?.trim();
+  const visualBrief = sceneVisualBrief(scene);
 
   const subject = resolvePromptText("scene_subject", overrides, {
     product_title: product.title,
     brand_line: product.brand ? `Brand: ${product.brand}.` : "",
-    price_line: price ? `Price to show if relevant: ${price}.` : "",
-  });
-
-  const textRules = resolvePromptText("scene_text_rules", overrides, {
-    scene_text: scene.text,
-    emphasis_line: emphasis
-      ? `Emphasis line (smaller, optional): "${emphasis}".`
-      : "",
+    price_line: "",
   });
 
   return [
+    BACKGROUND_ONLY_BASE,
     resolvePromptText("scene_type_line", overrides),
     buildVisualSeriesBrief(script, product, overrides),
     blueprint,
     `Scene ${sceneIndex + 1} of 4 (${style}).`,
+    `Scene context (for mood only, do NOT render as text): ${sceneHeadline(scene)}`,
+    "",
+    "VISUAL BRIEF:",
+    visualBrief,
     "",
     "BACKGROUND:",
     resolvePromptText("scene_background", overrides),
@@ -103,8 +106,7 @@ export function buildSceneImagePrompt(
     "SUBJECT:",
     subject,
     "",
-    "ON-IMAGE TEXT (Russian, exact wording, large and perfectly legible on phone):",
-    textRules,
+    resolvePromptText("scene_text_rules", overrides),
     "",
     "COMPOSITION:",
     resolvePromptText("scene_composition", overrides),

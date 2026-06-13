@@ -10,6 +10,7 @@ import type { z } from "zod";
 export type GenerateScriptInput = {
   product: ProductCard;
   productIntel?: ProductIntel;
+  productConfidence?: import("@reels-factory/shared").ProductConfidence;
   reelType: z.infer<typeof reelTypeSchema>;
   highlights: string[];
   customHighlight?: string;
@@ -27,9 +28,12 @@ export type GenerateScriptUsage = {
 };
 
 export type GenerateScriptResult = {
-  script: import("@reels-factory/shared").ReelScript;
+  script?: import("@reels-factory/shared").ReelScript;
   usage?: GenerateScriptUsage;
   mock?: boolean;
   mockReason?: string;
   billingExceeded?: boolean;
+  failed?: boolean;
+  errorMessage?: string;
+  qualityScore?: import("@reels-factory/shared").CreativeQualityScore;
 };

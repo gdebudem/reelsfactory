@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { SceneImage } from "@reels-factory/shared";
+import { type SceneImage } from "@reels-factory/shared";
 import {
   getSceneImageProxyUrl,
 } from "@/lib/scene-image-url";

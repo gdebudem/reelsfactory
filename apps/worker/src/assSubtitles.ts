@@ -1,4 +1,5 @@
 import type { ReelScript } from "@reels-factory/shared";
+import { sceneDuration, sceneHeadline } from "@reels-factory/shared";
 
 const OUT_W = 720;
 const OUT_H = 1280;
@@ -44,21 +45,26 @@ export function buildAssSubtitles(
     })
     .join("\n");
 
+  let timeline = 0;
   const dialogues = scenes
-    .filter((scene) => scene.text?.trim())
-    .map((scene) => {
+    .filter((scene) => sceneHeadline(scene).trim())
+    .map((scene, index) => {
       const style = scene.style ?? "subheadline";
       const cfg = STYLE_BY_SCENE[style] ?? STYLE_BY_SCENE.subheadline!;
-      const start = secToAss(scene.startSec);
-      const end = secToAss(scene.endSec);
-      const text = escapeAss(scene.text.trim().slice(0, 90));
+      const dur = sceneDuration(scene, index);
+      const start = scene.startSec ?? timeline;
+      const end = scene.endSec ?? start + dur;
+      timeline = end;
+      const startAss = secToAss(start);
+      const endAss = secToAss(end);
+      const text = escapeAss(sceneHeadline(scene).trim().slice(0, 90));
       const fadeIn = 250;
       const fadeOut = 200;
       const centerX = OUT_W / 2;
       const moveY =
         cfg.align === 2 ? OUT_H - cfg.marginV : cfg.marginV + 40;
       const tags = `{\\fad(${fadeIn},${fadeOut})}{\\move(${centerX},${moveY + 36},${centerX},${moveY},0,400)}`;
-      return `Dialogue: 0,${start},${end},${style},,0,0,0,,${tags}${text}`;
+      return `Dialogue: 0,${startAss},${endAss},${style},,0,0,0,,${tags}${text}`;
     })
     .join("\n");
 

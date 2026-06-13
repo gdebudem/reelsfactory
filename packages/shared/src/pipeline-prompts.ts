@@ -42,57 +42,58 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "Сценарий (OpenAI)",
     description:
       "Инструкция для GPT при написании 4 сцен Hook→Pain→Proof→CTA. Плейсхолдер {{tone}} подставляется по типу ролика.",
-    defaultContent: `Ты сценарист ВИРУСНЫХ product Reels (15 сек, 9:16). Язык: русский. Тон: {{tone}}.
+    defaultContent: `Ты creative strategist для вирусных performance Reels на русском языке.
 
-Главная цель: ТАРГЕТИРОВАННЫЙ ролик, который ЗАЛЕТАЕТ — смешной, классный, с мощным хуком в первые 1.5 сек. Не реклама из буклета, а креатив, который хочется досмотреть и переслать.
+Твоя задача — не описать товар, а придумать рекламный микро-сюжет на 15 секунд, который:
+1. цепляет конкретную аудиторию,
+2. показывает узнаваемую боль,
+3. доказывает пользу товара,
+4. ведёт к понятному действию.
 
-═══ ХУК (самое важное) ═══
-Первый кадр решает всё. Выбери ОДИН паттерн под ЦА из reelType + category + userHighlights:
-• «Если вы [боль ЦА] — стоп» — прямой таргет
-• «POV: вы наконец нашли…» — relatable
-• «Почему все берут X, а вы нет?» — curiosity gap
-• «Стоп. Это не реклама» / «Серьёзно?» — pattern interrupt
-• Цифра + интрига: «4.9★ и вот почему»
-• Контраст: «Дорого? Смотрите цену»
-• «3 секунды — и вы поймёте» — open loop (ответ только в proof)
+Формат: 4 сцены Hook → Pain → Proof → CTA.
+Каждая сцена — отдельный вертикальный кадр 9:16.
+Текст на экране (headline): максимум 6–8 слов.
+Никаких общих фраз: «лучшее качество», «выгодная покупка», «успей купить», «супер товар», «краткое описание», «топ товар».
+Никаких выдуманных отзывов, рейтингов, скидок, гарантий и дефицита.
 
-Хук = headline = scenes[0].text. Должен бить в конкретную аудиторию, а не «для всех».
+Перед сценами ОБЯЗАТЕЛЬНО выбери:
+- audience: одна конкретная ЦА
+- pain: одна конкретная боль
+- desire: желаемый результат
+- angle: один рекламный угол
+- creativeMechanic: один механизм удержания:
+  «узнавание боли», «контраст до/после», «миф/правда», «ошибка выбора», «мини-тест», «POV», «дорого/дёшево», «неочевидная выгода»
 
-═══ ТАРГЕТИНГ ═══
-Сузь ролик под ЦА: кто покупает этот товар, какая у них боль, какой мем-язык им зайдёт.
-Используй: productData.category, brand, reelType, userHighlights, consumerPainPoints из intel.
-Один ролик = одна аудитория = одна боль = один хук. Не размывай.
+Если productConfidence.canUseReviews=false:
+- не используй рейтинг,
+- не используй кавычки отзывов,
+- не пиши «покупатели говорят», «хит продаж», «разбирают», «лучший выбор»,
+- используй только подтверждённые характеристики товара.
 
-═══ ОТЗЫВЫ (обязательно, если есть reviewContext) ═══
-Смотри reviewContext.topReviews, productIntel.marketplaceReviews, productData.reviews.
-- Если hasReviews=true — сценарий ОБЯЗАН опираться на реальные отзывы покупателей
-- hook: можно рейтинг/socialProof («4.9★ — вот почему»)
-- pain: узнаваемая боль из отзывов и consumerPainPoints (что раздражало ДО покупки)
-- proof (scenes[2]): цитата или суть лучшего отзыва — reviewContext.bestReviewQuote или topReviews[0]; живой язык покупателя, макс 10 слов
-- reviewQuote: дословная цитата из topReviews (до 70 символов, в «кавычках»)
-- bullets: 1–2 пункта, перефразирующие похвалу из отзывов
-- Не выдумывай отзывы — только из reviewContext и intel
+Если productConfidence.canUsePrice=false — не указывай priceLabel.
 
-═══ Формула Hook → Pain → Proof → Offer+CTA (4 сцены) ═══
-1. hook (0–3.75с): scroll-stop, таргет + интрига/юмор, макс 8 слов, open loop
-2. pain (3.75–7.5с): «это про меня» для ЦА, с иронией, макс 8 слов
-3. proof (7.5–11.25с): закрывает loop — факт/отзыв/рейтинг, макс 10 слов
-4. cta (11.25–15с): цена + призыв, энергия FOMO, макс 8 слов
+CTA должен быть действием, НЕ «На сайт».
+Плохо: «На сайт», «Покупай скорее»
+Хорошо: «Подобрать модель», «Рассчитать под помещение», «Смотреть характеристики», «Узнать цену», «Выбрать на сайте»
 
-═══ Чтобы залетал ═══
-- Каждая сцена — новый удар, не повторяй формулировки
-- Юмор от фактов: цена, отзыв, характеристика — не выдумывай
-- subheadline усиливает хук; bullets — 2–3 коротких «почему зайдёт ЦА», включая мысли из отзывов
-- reviewQuote — реальный отзыв из reviewContext; proof-сцена должна звучать как покупатель
-- Без токсичности, кринжа, fake urgency, выдуманных обещаний
+Тон: {{tone}}
 
-Техника:
-- templateId: "viral_v1"
-- musicMood: energetic | trust | premium
-- musicTrackId: upbeat_drive | steady_groove | smooth_pulse
-- scenes: ровно 4, imageIndex 0–3, style: hook | pain | proof | cta
+templateId: minimal_product_reel_v2 (или problem_solution_v1 / expert_pick_v1 / marketplace_clean_v1 по типу товара)
+musicMood: energetic | trust | premium
+musicTrackId: upbeat_drive | steady_groove | smooth_pulse
+voiceoverStyle: calm_confident | energetic | expert
 
-Верни ТОЛЬКО валидный JSON.`,
+Каждая сцена:
+- style: hook | pain | proof | cta
+- duration: 3.5 | 3.5 | 4 | 4
+- headline (max 8 words), subheadline optional
+- visualBrief: описание ФОНА без текста (для AI image)
+- motion: slow_zoom | push_in | product_reveal | button_pop
+- imageIndex: 0–3
+- proof: bullets optional (max 2)
+- cta: buttonText — осмысленное действие
+
+Верни строго валидный JSON.`,
   },
   {
     id: "intel_system",
@@ -124,7 +125,7 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "AI-картинки",
     description: "Префикс при редактировании по фото товара.",
     defaultContent:
-      "Use the attached product photo as the hero subject. Preserve product shape, colors, and branding.\nPlace it in a bold, meme-worthy TikTok ad set — expressive, not boring catalog. Product stays real; background gets personality.",
+      "Use the attached product photo as the hero subject. Preserve product shape, colors, and branding.\nPlace it in a premium minimal commercial scene. Product stays realistic. Background only — NO text overlays.",
   },
   {
     id: "scene_type_line",
@@ -132,7 +133,7 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "AI-картинки",
     description: "Первая строка промпта генерации кадра.",
     defaultContent:
-      "TYPE: Viral targeted Russian product Reels frame, 9:16 mobile — scroll-stopping hook visual, funny, premium-cool, algorithm-native, not corporate ad.",
+      "TYPE: Background-only visual for vertical product Reel, 9:16 mobile. Premium minimal commercial photography. NO text in image.",
   },
   {
     id: "scene_background",
@@ -140,7 +141,7 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
     stage: "AI-картинки",
     description: "Секция BACKGROUND.",
     defaultContent:
-      "Dynamic gradient or playful studio set, subtle props that support the joke/mood, vibrant but clean — TikTok ad energy, not sterile white box.",
+      "Clean modern environment matching visualBrief. Soft gradients, subtle props. Premium minimal — not marketplace banner, not noisy poster.",
   },
   {
     id: "scene_subject",
@@ -150,18 +151,17 @@ export const PIPELINE_PROMPT_DEFINITIONS: PipelinePromptDefinition[] = [
       "Секция SUBJECT. Плейсхолдеры: {{product_title}}, {{brand_line}}, {{price_line}}.",
     defaultContent: `Photorealistic product: "{{product_title}}".
 {{brand_line}}
-{{price_line}}
-Product looks sharp and desirable — hero shot with personality, slight dramatic angle, «this is the one» energy.`,
+Product hero shot — realistic, clean, proportional, not distorted. Premium commercial photography.`,
   },
   {
     id: "scene_text_rules",
-    label: "Картинки — текст на кадре",
+    label: "Картинки — запрет текста",
     stage: "AI-картинки",
-    description:
-      "Правила текста на изображении. Плейсхолдеры: {{scene_text}}, {{emphasis_line}}.",
-    defaultContent: `"{{scene_text}}"
-{{emphasis_line}}
-Hook text dominates frame — extra-bold meme Cyrillic, high contrast, readable in 0.3 sec on mobile feed. Spell correctly. No English clutter.`,
+    description: "Жёсткий запрет текста на изображении.",
+    defaultContent: `CRITICAL — NO TEXT IN IMAGE:
+NO letters, NO captions, NO logos except original on product packaging.
+NO poster design, NO fake UI, NO badges, NO typography, NO numbers overlay.
+Leave clean negative space for text overlay (top 180px and bottom 260px safe zones).`,
   },
   {
     id: "scene_composition",
@@ -169,7 +169,7 @@ Hook text dominates frame — extra-bold meme Cyrillic, high contrast, readable 
     stage: "AI-картинки",
     description: "Секция COMPOSITION.",
     defaultContent:
-      "Hook-first TikTok layout: headline is the star, product supports the hook, 8% safe margins, reads in 0.3 sec on feed scroll.",
+      "Product hero composition, 9:16 mobile-first. Safe top margin 180px, safe bottom 260px, side margins 72px. Clean negative space for text overlay. Product not cropped.",
   },
   {
     id: "scene_constraints",
@@ -177,43 +177,43 @@ Hook text dominates frame — extra-bold meme Cyrillic, high contrast, readable 
     stage: "AI-картинки",
     description: "Секция CONSTRAINTS.",
     defaultContent:
-      "Photorealistic product. No watermarks. No fake logos.\nExpressive and fun — not stock-photo bland, not AI slop, not cheap clip art.\nPerfect Cyrillic on overlay text. Must feel like a viral product meme ad, not a boring banner.",
+      "Photorealistic product only. No watermarks. No fake logos.\nPremium minimal commercial — not cartoon, not marketplace banner, not AI slop.\nABSOLUTELY NO TEXT, LETTERS, OR TYPOGRAPHY IN THE IMAGE.",
   },
   {
     id: "scene_blueprint_hook",
     label: "Кадр Hook",
     stage: "AI-картинки",
     description: "Blueprint для сцены hook.",
-    defaultContent: `FRAME ROLE: HOOK — scroll-stop, таргетированный, «залетает» с первого кадра.
-COMPOSITION: Giant hook text upper 35% (biggest element on screen), product lower 40%, visual tension — viewer MUST pause thumb.
-MOOD: Pattern interrupt — surprise, curiosity, cool confidence, subtle humor. Feels like viral TikTok hook, not banner ad.`,
+    defaultContent: `FRAME ROLE: HOOK — atmospheric scene, clean negative space at top.
+COMPOSITION: Environment or product context, NO text. Warm or contrasting mood per visualBrief.
+MOOD: Scroll-stop atmosphere, premium minimal.`,
   },
   {
     id: "scene_blueprint_pain",
     label: "Кадр Pain",
     stage: "AI-картинки",
     description: "Blueprint для сцены pain.",
-    defaultContent: `FRAME ROLE: PAIN — relatable struggle (with humor).
-COMPOSITION: Product smaller, emotional headline dominates, exaggerated «before» mood in background.
-MOOD: «Блин, это же про меня» — ironic, empathetic, not depressing.`,
+    defaultContent: `FRAME ROLE: PAIN — relatable environment showing the problem context.
+COMPOSITION: Product smaller or absent, emotional atmosphere in background. NO text.
+MOOD: Subtle tension, relatable struggle — not depressing.`,
   },
   {
     id: "scene_blueprint_proof",
     label: "Кадр Proof",
     stage: "AI-картинки",
     description: "Blueprint для сцены proof.",
-    defaultContent: `FRAME ROLE: PROOF — «окей, это реально работает».
-COMPOSITION: Product hero 45%, quote/stat badge, brighter confident palette.
-MOOD: Satisfied smirk energy, trust + delight, «наконец-то нормальная вещь».`,
+    defaultContent: `FRAME ROLE: PROOF — product as hero solution.
+COMPOSITION: Product 45–55% of frame, premium lighting, confident palette. NO text, NO badges.
+MOOD: Trust, clarity, professional.`,
   },
   {
     id: "scene_blueprint_cta",
     label: "Кадр CTA",
     stage: "AI-картинки",
     description: "Blueprint для сцены cta.",
-    defaultContent: `FRAME ROLE: CTA — «беру, пока не разобрали».
-COMPOSITION: Product + bold price, CTA strip bottom third, urgency without panic.
-MOOD: Fun FOMO, clear next step, celebratory micro-win.`,
+    defaultContent: `FRAME ROLE: CTA — product hero with empty bottom safe zone for button overlay.
+COMPOSITION: Product centered, clean background, bottom third empty for CTA. NO text in image.
+MOOD: Premium, inviting, clear.`,
   },
   {
     id: "scene_mood_energetic_palette",

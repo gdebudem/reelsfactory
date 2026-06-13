@@ -14,10 +14,19 @@ import {
   OPENAI_BILLING_LOG_HINT,
 } from "@reels-factory/shared";
 import { buildSceneImagePrompt } from "./prompts";
+import { lintAllScenes, sceneHeadline } from "@reels-factory/shared";
+import { compositeSceneWithDesign } from "@reels-factory/design-renderer";
 import {
   fetchImageBuffer,
   PLACEHOLDER_IMAGE_URL,
 } from "./fetch-image";
+
+export class DesignQaError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DesignQaError";
+  }
+}
 
 export type SceneImageUploader = (
   key: string,
@@ -128,7 +137,7 @@ async function buildSingleSceneFallback(
   return {
     sceneIndex,
     style: scene.style,
-    text: scene.text,
+    text: sceneHeadline(scene),
     imageUrl,
     prompt: "fallback:product-photo",
   };
@@ -263,7 +272,23 @@ export async function generateSceneImages(
       continue;
     }
 
-    let imageUrl = await storeSceneImage(jobId, i, buffer, "image/png", upload);
+    const designLint = lintAllScenes(script, { backgroundOnly: true });
+    if (!designLint.passed) {
+      throw new DesignQaError(
+        `Design QA failed: ${designLint.issues.join(", ")}`
+      );
+    }
+
+    try {
+      buffer = await compositeSceneWithDesign(buffer, script, i);
+    } catch (compositeErr) {
+      console.warn(
+        `[scene-images] Design composite failed scene ${i + 1}:`,
+        compositeErr instanceof Error ? compositeErr.message : compositeErr
+      );
+    }
+
+    const imageUrl = await storeSceneImage(jobId, i, buffer, "image/png", upload);
 
     const promptPreview = buildSceneImagePrompt(
       product,
@@ -276,7 +301,7 @@ export async function generateSceneImages(
     results.push({
       sceneIndex: i,
       style: scene.style,
-      text: scene.text,
+      text: sceneHeadline(scene),
       imageUrl,
       prompt: promptPreview.slice(0, 500),
     });

@@ -1,4 +1,4 @@
-import type { ProductCard, ProductIntel, ReelScript } from "@reels-factory/shared";
+import { sceneHeadline, type ProductCard, type ProductIntel, type ReelScript } from "@reels-factory/shared";
 import { StoryboardLinks } from "./StoryboardLinks";
 
 const SCENE_STYLE_LABEL: Record<string, string> = {
@@ -71,7 +71,7 @@ export function StoryboardPanel({
                 )}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-8">
                   <p className="line-clamp-3 text-sm font-bold leading-tight text-white">
-                    {scene.text}
+                    {sceneHeadline(scene)}
                   </p>
                 </div>
                 <span className="absolute left-2 top-2 rounded-md bg-black/50 px-2 py-0.5 text-xs font-mono text-white">
@@ -87,7 +87,7 @@ export function StoryboardPanel({
                     </span>
                   )}
                 </p>
-                <p className="mt-1 text-sm text-slate-800">{scene.text}</p>
+                <p className="mt-1 text-sm text-slate-800">{sceneHeadline(scene)}</p>
                 {scene.emphasis && (
                   <p className="mt-1 text-xs text-amber-700">
                     Акцент: {scene.emphasis}

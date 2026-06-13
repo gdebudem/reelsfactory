@@ -30,10 +30,12 @@ export const JOB_STATUSES = [
   "queued",
   "researching",
   "scripting",
+  "script_failed",
   "generating_images",
   "image_generating",
+  "design_qa_failed",
   "images_ready",
-  "storyboard_ready", // legacy alias for images_ready
+  "storyboard_ready",
   "render_queued",
   "rendering",
   "ready",
@@ -115,6 +117,18 @@ export const productIntelSchema = z.object({
   rankedSellingPoints: z.array(z.string()).optional(),
   socialProof: z.string().optional(),
   researchSources: z.array(z.string()).optional(),
+  productConfidence: z
+    .object({
+      exactSkuMatch: z.boolean(),
+      sku: z.string(),
+      matchedProductUrls: z.array(z.string()),
+      wrongMatches: z.array(z.string()),
+      confidence: z.number(),
+      canUseReviews: z.boolean(),
+      canUseRating: z.boolean(),
+      canUsePrice: z.boolean(),
+    })
+    .optional(),
 });
 
 export type ExternalSnippet = z.infer<typeof externalSnippetSchema>;
@@ -167,44 +181,30 @@ export const wizardFormSchema = z.object({
 
 export type WizardForm = z.infer<typeof wizardFormSchema>;
 
-export const sceneStyleSchema = z.enum([
-  "headline",
-  "subheadline",
-  "bullet",
-  "review",
-  "cta",
-  "hook",
-  "pain",
-  "proof",
-]);
+export {
+  reelScriptSchema,
+  reelSceneSchema,
+  sceneStyleSchema,
+  musicMoodSchema,
+  sceneMotionSchema,
+  voiceoverStyleSchema,
+  reelTemplateIdSchema,
+  creativeQualityScoreSchema,
+  sceneHeadline,
+  sceneDuration,
+  sceneVisualBrief,
+  isV2Script,
+  isViralScript,
+  shouldRegenerateScript,
+  normalizeReelScript,
+  sanitizeCtaText,
+  BANNED_CTA_PHRASES,
+  type ReelScript,
+  type ReelScene,
+} from "./reel-script";
 
-export const sceneSchema = z.object({
-  startSec: z.number(),
-  endSec: z.number(),
-  text: z.string(),
-  style: sceneStyleSchema.optional(),
-  imageIndex: z.number().int().min(0).max(4).optional(),
-  emphasis: z.string().optional(),
-});
-
-export const musicMoodSchema = z.enum(["energetic", "trust", "premium"]);
-
-export const reelScriptSchema = z.object({
-  headline: z.string(),
-  subheadline: z.string(),
-  priceLabel: z.string().optional(),
-  ctaText: z.string(),
-  bullets: z.array(z.string()).optional(),
-  reviewQuote: z.string().optional(),
-  scenes: z.array(sceneSchema),
-  templateId: z
-    .enum(["promo", "features", "viral_v1"])
-    .default("viral_v1"),
-  musicTrackId: z.string().optional(),
-  musicMood: musicMoodSchema.optional(),
-});
-
-export type ReelScript = z.infer<typeof reelScriptSchema>;
+/** @deprecated use reelSceneSchema */
+export { reelSceneSchema as sceneSchema } from "./reel-script";
 
 export const parseProductRequestSchema = z.object({
   url: z.string().url(),
@@ -244,8 +244,6 @@ export {
 
 export {
   PIPELINE_VERSION,
-  isViralScript,
-  shouldRegenerateScript,
 } from "./pipeline";
 
 export {
@@ -315,3 +313,25 @@ export {
 } from "./openai-errors";
 
 export { DEFAULT_OPENAI_MODEL, getOpenAiModel } from "./openai-model";
+
+export {
+  createOpenAiChatCompletion,
+  modelSupportsTemperature,
+  isDevMockAllowed,
+  type OpenAiChatMessage,
+  type OpenAiChatOptions,
+  type OpenAiChatResult,
+} from "./openai-chat";
+
+export {
+  buildProductConfidence,
+  stripUnverifiedIntel,
+  type ProductConfidence,
+} from "./product-confidence";
+
+export {
+  scoreCreativeQuality,
+  type CreativeQualityScore,
+} from "./creative-qa";
+
+export { lintSceneDesign, lintAllScenes, type DesignLintResult } from "./design-linter";

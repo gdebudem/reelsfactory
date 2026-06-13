@@ -1,7 +1,9 @@
-import type {
-  ProductCard,
-  ProductIntel,
-  PromptOverrides,
+import {
+  buildProductConfidence,
+  stripUnverifiedIntel,
+  type ProductCard,
+  type ProductIntel,
+  type PromptOverrides,
 } from "@reels-factory/shared";
 import { discoverMarketplaceUrls } from "./discover";
 import { fetchMarketplaceProducts } from "./merge-product";
@@ -83,7 +85,7 @@ export async function buildProductIntel(
   }
 
   await reporter.start("extract_benefits");
-  const intel = await synthesizeProductIntel(
+  let intel = await synthesizeProductIntel(
     productWithReviews,
     searchResults,
     marketplaceListings,
@@ -91,6 +93,28 @@ export async function buildProductIntel(
     promptOverrides
   );
   await reporter.complete("extract_benefits");
+
+  const productConfidence = buildProductConfidence(productWithReviews, {
+    ...intel,
+    marketplaceListings,
+  });
+  intel = {
+    ...stripUnverifiedIntel(intel, productConfidence),
+    productConfidence,
+  };
+
+  if (productConfidence.wrongMatches.length > 0) {
+    await reporter.log(
+      `SKU verify · confidence ${(productConfidence.confidence * 100).toFixed(0)}% · wrong: ${productConfidence.wrongMatches.length}`,
+      "info"
+    );
+  }
+  if (!productConfidence.canUseReviews) {
+    await reporter.log(
+      "SKU verify · отзывы и рейтинг отключены (нет точного совпадения товара)",
+      "info"
+    );
+  }
 
   return { intel, product: productWithReviews };
 }

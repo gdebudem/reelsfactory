@@ -54,13 +54,13 @@ export async function runStoryboard(
       data: { status: "researching" },
     });
 
-    const research = await buildProductIntel(
-      product,
-      reporter,
-      promptOverrides
-    );
-    intel = research.intel;
-    product = research.product;
+  const research = await buildProductIntel(
+    product,
+    reporter,
+    promptOverrides
+  );
+  intel = research.intel;
+  product = research.product;
     await prisma.reelJob.update({
       where: { id: jobId },
       data: { productIntelJson: intel, productJson: product },
@@ -82,6 +82,7 @@ export async function runStoryboard(
       {
         product,
         productIntel: intel ?? undefined,
+        productConfidence: intel?.productConfidence,
         reelType: job.reelType as z.infer<typeof reelTypeSchema>,
         highlights: job.highlights,
         customHighlight: job.customHighlight ?? undefined,
@@ -92,6 +93,18 @@ export async function runStoryboard(
       promptOverrides,
       reporter
     );
+
+    if (result.failed || !result.script) {
+      const msg =
+        result.errorMessage ??
+        "Не удалось сгенерировать сценарий. Попробуйте снова.";
+      await reporter.log(`ошибка · ${msg}`, "error");
+      await prisma.reelJob.update({
+        where: { id: jobId },
+        data: { status: "script_failed", errorMessage: msg },
+      });
+      throw new Error(msg);
+    }
 
     if (result.usage) {
       await reporter.logUsage(result.usage);
@@ -105,6 +118,12 @@ export async function runStoryboard(
           `сценарий · mock (${result.mockReason ?? "без OpenAI"})`
         );
       }
+    }
+
+    if (result.qualityScore) {
+      await reporter.log(
+        `QA сценария · hook ${(result.qualityScore.hookScore * 100).toFixed(0)}% · CTA ${(result.qualityScore.ctaClarity * 100).toFixed(0)}% · flags: ${result.qualityScore.riskFlags.join(", ") || "нет"}`
+      );
     }
 
     script = result.script;

@@ -82,29 +82,35 @@ export function pickReviewQuote(
 
 export function buildReviewContextForScript(
   product: ProductCard,
-  intel?: ProductIntel
+  intel?: ProductIntel,
+  confidence?: import("@reels-factory/shared").ProductConfidence
 ) {
-  const topReviews = collectReviewsForScript(product, intel);
-  const aggregate = product.aggregateRating;
+  const canUseReviews = confidence?.canUseReviews !== false;
+  const topReviews = canUseReviews
+    ? collectReviewsForScript(product, intel)
+    : [];
+  const aggregate = canUseReviews ? product.aggregateRating : undefined;
   const socialProof =
-    intel?.socialProof ??
-    (aggregate
-      ? `${aggregate.value.toFixed(1)} из 5${
-          aggregate.count ? ` (${aggregate.count} отзывов)` : ""
-        }`
-      : undefined);
+    canUseReviews && confidence?.canUseRating !== false
+      ? intel?.socialProof ??
+        (aggregate
+          ? `${aggregate.value.toFixed(1)} из 5${
+              aggregate.count ? ` (${aggregate.count} отзывов)` : ""
+            }`
+          : undefined)
+      : undefined;
 
   return {
     topReviews,
-    bestReviewQuote: pickReviewQuote(product, intel),
+    bestReviewQuote: canUseReviews
+      ? pickReviewQuote(product, intel)
+      : undefined,
     socialProof,
-    reviewCount:
-      topReviews.length ||
-      aggregate?.count ||
-      product.reviews?.length ||
-      intel?.marketplaceReviews?.length ||
-      0,
-    hasReviews: topReviews.length > 0,
+    reviewCount: canUseReviews ? topReviews.length : 0,
+    hasReviews: canUseReviews && topReviews.length > 0,
+    canUseReviews: canUseReviews && (confidence?.canUseReviews ?? true),
+    canUseRating: confidence?.canUseRating ?? true,
+    canUsePrice: confidence?.canUsePrice ?? true,
   };
 }
 
