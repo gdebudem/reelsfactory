@@ -24,11 +24,25 @@ export function isBrokenSceneImageUrl(url: string): boolean {
   return false;
 }
 
+/** Worker saved marketplace photos instead of OpenAI backgrounds. */
+export function isFallbackSceneImage(
+  scene: { imageUrl: string; prompt?: string }
+): boolean {
+  const prompt = scene.prompt?.trim() ?? "";
+  return (
+    prompt.startsWith("fallback:") ||
+    prompt === "fallback:product-photo"
+  );
+}
+
 export function sceneImagesNeedRegeneration(
-  scenes: { imageUrl: string }[] | null | undefined
+  scenes: { imageUrl: string; prompt?: string }[] | null | undefined
 ): boolean {
   if (!scenes || scenes.length < 4) return true;
-  return scenes.some((s) => isBrokenSceneImageUrl(s.imageUrl));
+  if (scenes.every((s) => isFallbackSceneImage(s))) return true;
+  return scenes.some(
+    (s) => isBrokenSceneImageUrl(s.imageUrl) || isFallbackSceneImage(s)
+  );
 }
 
 /** Safe to use as <img src> without proxy (public CDN / inline). */

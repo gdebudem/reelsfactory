@@ -85,8 +85,12 @@ async function buildSingleSceneFallback(
     PLACEHOLDER_IMAGE_URL;
 
   let imageUrl = PLACEHOLDER_IMAGE_URL;
+  let buffer: Buffer | null = null;
+  let contentType = "image/jpeg";
   try {
-    const { buffer, contentType } = await fetchImageBuffer(sourceUrl);
+    const fetched = await fetchImageBuffer(sourceUrl);
+    buffer = fetched.buffer;
+    contentType = fetched.contentType;
     await onRequest?.(
       buildHttpGetRequestLog({
         url: sourceUrl,
@@ -98,6 +102,15 @@ async function buildSingleSceneFallback(
         runtime: "Railway",
       })
     );
+    try {
+      buffer = await compositeSceneWithDesign(buffer, script, sceneIndex);
+      contentType = "image/png";
+    } catch (compositeErr) {
+      console.warn(
+        `[scene-images] Design composite on fallback scene ${sceneIndex + 1}:`,
+        compositeErr instanceof Error ? compositeErr.message : compositeErr
+      );
+    }
     imageUrl = await storeSceneImage(jobId, sceneIndex, buffer, contentType, upload);
   } catch (fetchErr) {
     const msg =
@@ -323,5 +336,6 @@ export {
   extractSceneStorageKey,
   isBrokenSceneImageUrl,
   isDirectBrowserSceneUrl,
+  isFallbackSceneImage,
   sceneImagesNeedRegeneration,
 } from "./scene-url";

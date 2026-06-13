@@ -153,6 +153,10 @@ async function logWorkerReady() {
   console.log(
     `[worker] Storage (S3/R2): ${hasStorageConfigured() ? "configured" : "MISSING"}`
   );
+  const openaiKey = process.env.OPENAI_API_KEY?.trim();
+  console.log(
+    `[worker] OpenAI images: ${openaiKey ? "configured" : "MISSING — will use product photos only"}`
+  );
   const renderMode = getRenderMode();
   console.log(`[worker] Render mode: ${renderMode}`);
   if (renderMode === "demo") {
