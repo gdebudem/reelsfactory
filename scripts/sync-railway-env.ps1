@@ -24,15 +24,21 @@ function Read-DotEnvValue([string]$file, [string]$key) {
 }
 
 Write-Host "Checking Railway CLI auth..."
-$whoami = npx railway whoami 2>&1
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "Not logged in. Run: npx railway login"
-  exit 1
+if ($env:RAILWAY_TOKEN) {
+  Write-Host "Using RAILWAY_TOKEN from environment"
+} else {
+  $whoami = npx @railway/cli@4.5.4 whoami 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "Not logged in. Run: npx railway login"
+    Write-Host "Or set RAILWAY_TOKEN from https://railway.app/account/tokens"
+    exit 1
+  }
+  Write-Host $whoami
 }
-Write-Host $whoami
 
 $sources = @(
   (Join-Path $root ".env.vercel"),
+  (Join-Path $root ".env.railway-sync"),
   (Join-Path $root ".env"),
   (Join-Path $root "apps\worker\.env")
 )
@@ -68,12 +74,21 @@ foreach ($kv in $vars.GetEnumerator()) {
 }
 
 Write-Host "Setting $($setArgs.Count) variables on Railway..."
-npx railway variable set @setArgs
+Write-Host "Keys: $($setArgs | ForEach-Object { ($_ -split '=')[0] } | Sort-Object -Unique -join ', ')"
+
+$missing = @("OPENAI_API_KEY", "S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_PUBLIC_URL") | Where-Object {
+  -not $vars.Contains($_) -or -not $vars[$_]
+}
+if ($missing.Count) {
+  Write-Host "WARNING: missing locally (add in Railway dashboard or .env.railway-sync): $($missing -join ', ')"
+}
+
+npx @railway/cli@4.5.4 variable set @setArgs
 if ($LASTEXITCODE -ne 0) {
   Write-Host "Failed to set variables."
   exit 1
 }
 
 Write-Host "Done. Redeploying worker..."
-npx railway redeploy --yes
+npx @railway/cli@4.5.4 redeploy --yes
 Write-Host "Check logs for: [worker] Postgres queue"
